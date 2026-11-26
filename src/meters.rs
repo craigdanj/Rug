@@ -214,3 +214,176 @@ pub fn oled_screen(ui: &mut Ui, title: &str, value_text: &str, subtitle: &str, s
         theme.paint_screen_overlay(painter, rect);
     }
 }
+
+// ---------------- 7. ANALOG VU NEEDLE METER ----------------
+
+pub fn vu_meter(ui: &mut Ui, level_norm: f32, label: &str, size: Vec2, theme: &AudioTheme) {
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let painter = ui.painter();
+    theme.paint_recessed_rect(painter, rect, 5.0);
+
+    // Subtle warm backlit glow in Skeuomorphic mode
+    if theme.skin == crate::theme::Skin::Skeuomorphic {
+        AudioTheme::paint_radial_gradient_circle(
+            painter,
+            Pos2::new(rect.center().x, rect.min.y + rect.height() * 0.35),
+            rect.width() * 0.65,
+            AudioTheme::with_alpha(theme.palette.accent, 34),
+            egui::Color32::TRANSPARENT,
+        );
+    }
+
+    let pivot = Pos2::new(rect.center().x, rect.max.y + rect.height() * 0.18);
+    let arc_r = rect.height() * 0.88;
+    let min_ang = -std::f32::consts::FRAC_PI_2 - 0.62;
+    let max_ang = -std::f32::consts::FRAC_PI_2 + 0.62;
+    let red_start = 0.72f32;
+
+    // Draw VU scale arc (normal + red +0..+3 dB zone)
+    let draw_scale_arc = |t0: f32, t1: f32, stroke: Stroke| {
+        let steps = 20;
+        let pts: Vec<Pos2> = (0..=steps)
+            .map(|i| {
+                let t = t0 + (t1 - t0) * (i as f32 / steps as f32);
+                let a = min_ang + t * (max_ang - min_ang);
+                pivot + Vec2::angled(a) * arc_r
+            })
+            .collect();
+        painter.add(Shape::line(pts, stroke));
+    };
+    draw_scale_arc(0.0, red_start, Stroke::new(1.5, theme.palette.text_muted));
+    draw_scale_arc(red_start, 1.0, Stroke::new(2.2, theme.palette.danger));
+
+    // Scale tick marks
+    for (t, txt) in [(0.0, "-20"), (0.28, "-10"), (0.52, "-3"), (0.72, "0"), (1.0, "+3")] {
+        let a = min_ang + t * (max_ang - min_ang);
+        let dir = Vec2::angled(a);
+        let col = if t >= red_start { theme.palette.danger } else { theme.palette.text_muted };
+        painter.line_segment(
+            [pivot + dir * (arc_r - 4.0), pivot + dir * (arc_r + 3.0)],
+            Stroke::new(1.2, col),
+        );
+        painter.text(
+            pivot + dir * (arc_r + 10.0),
+            Align2::CENTER_CENTER,
+            txt,
+            FontId::monospace(8.0),
+            col,
+        );
+    }
+
+    // Label
+    painter.text(
+        Pos2::new(rect.center().x, rect.max.y - 12.0),
+        Align2::CENTER_CENTER,
+        label,
+        FontId::monospace(9.5),
+        theme.palette.text_muted,
+    );
+
+    // Ballistic needle
+    let clamped = level_norm.clamp(0.0, 1.0);
+    let needle_ang = min_ang + clamped * (max_ang - min_ang);
+    let dir = Vec2::angled(needle_ang);
+    let p_base = pivot + dir * (arc_r * 0.25);
+    let p_tip = pivot + dir * (arc_r + 1.0);
+    painter.line_segment(
+        [p_base + Vec2::new(1.5, 1.5), p_tip + Vec2::new(1.5, 1.5)],
+        Stroke::new(2.0, egui::Color32::from_black_alpha(90)),
+    );
+    let needle_col = if clamped >= red_start { theme.palette.danger } else { theme.palette.accent };
+    painter.line_segment([p_base, p_tip], Stroke::new(1.8, needle_col));
+
+    // Bottom pivot cap
+    let cap_center = Pos2::new(rect.center().x, rect.max.y - 2.0);
+    painter.circle_filled(cap_center, 6.0, AudioTheme::darken(theme.palette.bg_panel, 0.25));
+    painter.circle_stroke(cap_center, 6.0, Stroke::new(1.0, theme.palette.border));
+    theme.paint_screen_overlay(painter, rect);
+}
+
+// ---------------- 8. LUFS / LOUDNESS BAR METER ----------------
+
+pub fn lufs_meter(
+    ui: &mut Ui,
+    momentary_lufs: f32,
+    short_term_lufs: f32,
+    true_peak_db: f32,
+    size: Vec2,
+    theme: &AudioTheme,
+) {
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let painter = ui.painter();
+    theme.paint_recessed_rect(painter, rect, 4.0);
+
+    let to_norm = |lufs: f32| ((lufs + 48.0) / 48.0).clamp(0.0, 1.0);
+    let m_norm = to_norm(momentary_lufs);
+    let s_norm = to_norm(short_term_lufs);
+    let target_norm = to_norm(-14.0);
+
+    let bar_rect = Rect::from_min_max(
+        Pos2::new(rect.min.x + 8.0, rect.min.y + 8.0),
+        Pos2::new(rect.max.x - 8.0, rect.min.y + 22.0),
+    );
+    painter.rect_filled(bar_rect, 2.0, AudioTheme::darken(theme.palette.bg_recessed, 0.35));
+
+    // Momentary fill
+    let fill_w = bar_rect.width() * m_norm;
+    let fill_col = if momentary_lufs > -9.0 {
+        theme.palette.meter_high
+    } else if momentary_lufs > -16.0 {
+        theme.palette.meter_mid
+    } else {
+        theme.palette.meter_low
+    };
+    painter.rect_filled(
+        Rect::from_min_size(bar_rect.min, Vec2::new(fill_w, bar_rect.height())),
+        2.0,
+        fill_col,
+    );
+
+    // Target -14 LUFS marker
+    let tx = bar_rect.min.x + target_norm * bar_rect.width();
+    painter.line_segment(
+        [Pos2::new(tx, bar_rect.min.y - 2.0), Pos2::new(tx, bar_rect.max.y + 2.0)],
+        Stroke::new(1.2, theme.palette.text_muted),
+    );
+
+    // Short-term marker line
+    let sx = bar_rect.min.x + s_norm * bar_rect.width();
+    painter.line_segment(
+        [Pos2::new(sx, bar_rect.min.y), Pos2::new(sx, bar_rect.max.y)],
+        Stroke::new(2.2, theme.palette.text_primary),
+    );
+
+    // Numeric readouts
+    let y_txt = rect.max.y - 12.0;
+    let tp_col = if true_peak_db > -0.2 { theme.palette.danger } else { theme.palette.accent };
+    painter.text(
+        Pos2::new(rect.min.x + 8.0, y_txt),
+        Align2::LEFT_CENTER,
+        format!("M {:>5.1}", momentary_lufs),
+        FontId::monospace(9.5),
+        theme.palette.text_primary,
+    );
+    painter.text(
+        Pos2::new(rect.center().x, y_txt),
+        Align2::CENTER_CENTER,
+        format!("S {:>5.1}", short_term_lufs),
+        FontId::monospace(9.5),
+        theme.palette.text_muted,
+    );
+    painter.text(
+        Pos2::new(rect.max.x - 8.0, y_txt),
+        Align2::RIGHT_CENTER,
+        format!("TP {:+.1}", true_peak_db),
+        FontId::monospace(9.5),
+        tp_col,
+    );
+    theme.paint_screen_overlay(painter, rect);
+}

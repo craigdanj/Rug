@@ -4,6 +4,7 @@ pub mod controls;
 pub mod editors;
 pub mod interaction;
 pub mod meters;
+pub mod pro;
 pub mod scale;
 pub mod theme;
 
@@ -13,5 +14,6 @@ pub use controls::*;
 pub use editors::*;
 pub use interaction::*;
 pub use meters::*;
+pub use pro::*;
 pub use scale::*;
 pub use theme::*;

@@ -12,8 +12,9 @@ cargo run --example showcase
 
 - **Continuous Controls:** `RotaryKnob`, `Fader` (vertical & horizontal), `XyPad`, `RangeSlider`
 - **Buttons & Switches:** `push_button`, `toggle_button`, `multi_switch`, `segmented_control`, `led_indicator`
-- **Meters & Screens:** `level_meter`, `gain_reduction_meter`, `correlation_meter`, `oscilloscope`, `spectrum_analyzer`, `oled_screen`
-- **Interactive Editors:** `waveform_editor`, `envelope_editor` (ADSR), `eq_curve_editor`, `step_sequencer`, `mini_keyboard`
+- **Meters & Screens:** `level_meter`, `gain_reduction_meter`, `correlation_meter`, `oscilloscope`, `spectrum_analyzer`, `oled_screen`, `vu_meter`, `lufs_meter`
+- **Interactive Editors:** `waveform_editor`, `envelope_editor` (ADSR), `eq_curve_editor`, `step_sequencer`, `mini_keyboard`, `piano_roll`
+- **Pro-Audio Modules:** `channel_strip`, `saturation_display`, `mod_matrix`
 - **Chrome & Inputs:** `scrub_value_box`, `styled_text_input`, `preset_bar`, `rack_module`, `transport_bar`
 
 ## Customizing the Theme

@@ -30,6 +30,11 @@ struct AudioShowcase {
     eq_bands: Vec<EqBand>,
     steps: Vec<f32>,
     active_note: Option<(u8, f32)>,
+    strips: Vec<ChannelStripState>,
+    sat_state: SaturationState,
+    mod_routes: Vec<ModRoute>,
+    selected_mod_src: usize,
+    piano_roll: PianoRollState,
     time: f32,
 }
 
@@ -58,6 +63,17 @@ impl Default for AudioShowcase {
             ],
             steps: vec![0.9, 0.0, 0.5, 0.0, 0.85, 0.0, 0.4, 0.6, 0.9, 0.0, 0.3, 0.0, 0.8, 0.4, 0.0, 0.7],
             active_note: None,
+            strips: vec![
+                ChannelStripState::new("BASS", -3.5, -0.1),
+                ChannelStripState::new("LEAD", -6.0, 0.25),
+            ],
+            sat_state: SaturationState::default(),
+            mod_routes: vec![
+                ModRoute { source_idx: 0, dest_idx: 0, depth: 0.35 },
+                ModRoute { source_idx: 1, dest_idx: 1, depth: -0.25 },
+            ],
+            selected_mod_src: 0,
+            piano_roll: PianoRollState::default(),
             time: 0.0,
         }
     }
@@ -115,6 +131,22 @@ impl eframe::App for AudioShowcase {
             .collect();
         let lvl_l = 0.55 + 0.35 * (self.time * 5.0).sin().abs();
         let lvl_r = 0.50 + 0.38 * (self.time * 5.3 + 0.6).sin().abs();
+        let lfo1 = (self.time * 2.0).sin();
+        let env2 = ((self.time * 1.4).sin() * 0.5 + 0.5).powf(2.0);
+        let cutoff_mod: f32 = self
+            .mod_routes
+            .iter()
+            .filter(|r| r.dest_idx == 0)
+            .map(|r| {
+                let src = match r.source_idx {
+                    0 => lfo1,
+                    1 => env2,
+                    2 => 0.75,
+                    _ => 0.5,
+                };
+                src * r.depth * 0.4
+            })
+            .sum();
 
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
@@ -123,7 +155,7 @@ impl eframe::App for AudioShowcase {
                         ui.horizontal(|ui| {
                             RotaryKnob::new(&mut self.cutoff, 1000.0, ParamScale::Log { min: 20.0, max: 20000.0 }, "CUTOFF", &self.theme)
                                 .unit("Hz")
-                                .modulation(0.18 * (self.time * 2.0).sin())
+                                .modulation(cutoff_mod)
                                 .show(ui);
                             RotaryKnob::new(&mut self.resonance, 0.2, ParamScale::Linear { min: 0.0, max: 1.0 }, "RESO", &self.theme)
                                 .show(ui);
@@ -166,6 +198,23 @@ impl eframe::App for AudioShowcase {
                             spectrum_analyzer(ui, &fft_bins, Vec2::new(180.0, 90.0), &self.theme);
                         });
                     });
+                    rack_module(ui, "VU & Loudness", None, &self.theme, |ui| {
+                        ui.vertical(|ui| {
+                            ui.horizontal(|ui| {
+                                vu_meter(ui, lvl_l * 0.92, "VU L", Vec2::new(105.0, 62.0), &self.theme);
+                                vu_meter(ui, lvl_r * 0.92, "VU R", Vec2::new(105.0, 62.0), &self.theme);
+                            });
+                            ui.add_space(4.0);
+                            lufs_meter(
+                                ui,
+                                -14.5 + 3.2 * (self.time * 2.4).sin(),
+                                -13.8 + 1.1 * (self.time * 0.8).sin(),
+                                -0.8 + 0.7 * (self.time * 3.1).sin().abs(),
+                                Vec2::new(218.0, 42.0),
+                                &self.theme,
+                            );
+                        });
+                    });
                 });
 
                 ui.add_space(8.0);
@@ -182,11 +231,43 @@ impl eframe::App for AudioShowcase {
                 });
 
                 ui.add_space(8.0);
-                rack_module(ui, "Sequencer & Keyboard", None, &self.theme, |ui| {
-                    ui.horizontal(|ui| {
-                        let step_idx = (self.time * 6.0) as usize;
-                        step_sequencer(ui, &mut self.steps, step_idx, Vec2::new(380.0, 72.0), &self.theme);
-                        mini_keyboard(ui, &mut self.active_note, Vec2::new(220.0, 72.0), &self.theme);
+                ui.horizontal_top(|ui| {
+                    rack_module(ui, "Mixer Strips", None, &self.theme, |ui| {
+                        ui.horizontal(|ui| {
+                            for (i, strip) in self.strips.iter_mut().enumerate() {
+                                let phase = i as f32 * 0.9;
+                                let sl = (0.45 + 0.4 * (self.time * 4.2 + phase).sin().abs()).clamp(0.0, 1.0);
+                                let sr = (0.42 + 0.42 * (self.time * 4.5 + phase + 0.5).sin().abs()).clamp(0.0, 1.0);
+                                channel_strip(ui, strip, sl, sr, &self.theme);
+                            }
+                        });
+                    });
+                    rack_module(ui, "Saturation", None, &self.theme, |ui| {
+                        saturation_display(ui, &mut self.sat_state, Vec2::new(150.0, 118.0), &self.theme);
+                    });
+                    rack_module(ui, "Modulation Matrix", None, &self.theme, |ui| {
+                        mod_matrix(
+                            ui,
+                            &[("LFO 1", lfo1), ("ENV 2", env2), ("VEL", 0.75), ("MAC", 0.5)],
+                            &["CUTOFF", "RESO", "DRIVE", "PAN"],
+                            &mut self.mod_routes,
+                            &mut self.selected_mod_src,
+                            &self.theme,
+                        );
+                    });
+                });
+
+                ui.add_space(8.0);
+                ui.horizontal_top(|ui| {
+                    rack_module(ui, "Sequencer & Keyboard", None, &self.theme, |ui| {
+                        ui.horizontal(|ui| {
+                            let step_idx = (self.time * 6.0) as usize;
+                            step_sequencer(ui, &mut self.steps, step_idx, Vec2::new(260.0, 92.0), &self.theme);
+                            mini_keyboard(ui, &mut self.active_note, Vec2::new(180.0, 92.0), &self.theme);
+                        });
+                    });
+                    rack_module(ui, "Piano Roll", None, &self.theme, |ui| {
+                        piano_roll(ui, &mut self.piano_roll, self.time * 1.5, Vec2::new(280.0, 108.0), &self.theme);
                     });
                 });
             });
