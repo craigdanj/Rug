@@ -119,6 +119,12 @@ pub fn oscilloscope(ui: &mut Ui, samples: &[f32], size: Vec2, theme: &AudioTheme
                 Pos2::new(x, y)
             })
             .collect();
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
+            painter.add(Shape::line(
+                pts.clone(),
+                Stroke::new(4.5, AudioTheme::with_alpha(theme.palette.accent, 42)),
+            ));
+        }
         painter.add(Shape::line(pts, Stroke::new(1.8, theme.palette.accent)));
     }
     theme.paint_screen_overlay(painter, rect);
@@ -142,11 +148,18 @@ pub fn spectrum_analyzer(ui: &mut Ui, bins_norm: &[f32], size: Vec2, theme: &Aud
             let y = rect.max.y - v.clamp(0.0, 1.0) * (rect.height() - 6.0) - 2.0;
             pts.push(Pos2::new(x, y));
         }
-        if theme.skin == crate::theme::Skin::Hybrid {
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
             let mut mesh = egui::Mesh::default();
-            let top_col = AudioTheme::with_alpha(theme.palette.accent, 75);
+            let is_skeuo = theme.skin == crate::theme::Skin::Skeuomorphic;
             let bot_col = AudioTheme::with_alpha(theme.palette.accent, 8);
+            let n = (pts.len() - 1).max(1) as f32;
             for (i, &p) in pts.iter().enumerate() {
+                let top_col = if is_skeuo {
+                    let blend = AudioTheme::lerp_color(theme.palette.accent_secondary, theme.palette.accent, i as f32 / n);
+                    AudioTheme::with_alpha(blend, 115)
+                } else {
+                    AudioTheme::with_alpha(theme.palette.accent, 75)
+                };
                 mesh.vertices.push(egui::epaint::Vertex { pos: p, uv: egui::epaint::WHITE_UV, color: top_col });
                 mesh.vertices.push(egui::epaint::Vertex { pos: Pos2::new(p.x, rect.max.y - 1.0), uv: egui::epaint::WHITE_UV, color: bot_col });
                 if i > 0 {
@@ -156,7 +169,7 @@ pub fn spectrum_analyzer(ui: &mut Ui, bins_norm: &[f32], size: Vec2, theme: &Aud
                 }
             }
             painter.add(Shape::mesh(mesh));
-            painter.add(Shape::line(pts.clone(), Stroke::new(3.8, AudioTheme::with_alpha(theme.palette.accent, 38))));
+            painter.add(Shape::line(pts.clone(), Stroke::new(4.2, AudioTheme::with_alpha(theme.palette.accent, 42))));
         } else {
             for p in &pts {
                 painter.line_segment(

@@ -127,13 +127,111 @@ pub fn rack_module(
     theme: &AudioTheme,
     add_contents: impl FnOnce(&mut Ui),
 ) {
+    let is_skeuo = theme.skin == Skin::Skeuomorphic;
+    let panel_rounding = if is_skeuo {
+        egui::Rounding::same(12.0)
+    } else {
+        theme.rounding(6.0)
+    };
+
+    if is_skeuo {
+        // Reserve background layer slot so gradient + soft ambient shadow sit behind widgets
+        let bg_idx = ui.painter().add(egui::Shape::Noop);
+        let frame = egui::Frame::none()
+            .fill(Color32::TRANSPARENT)
+            .stroke(Stroke::NONE)
+            .rounding(panel_rounding)
+            .inner_margin(egui::Margin::same(12.0));
+
+        let resp = frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(title.to_uppercase())
+                        .strong()
+                        .size(11.5)
+                        .color(theme.palette.text_primary),
+                );
+                if let Some(b) = bypass {
+                    ui.add_space(8.0);
+                    toggle_button(ui, b, "ON", Vec2::new(42.0, 18.0), None, theme);
+                }
+            });
+            ui.add_space(8.0);
+            add_contents(ui);
+        });
+
+        let r = resp.response.rect;
+        let mut shapes = Vec::new();
+        // Soft pillowed pod drop shadow
+        shapes.push(egui::Shape::rect_filled(
+            r.translate(Vec2::new(0.0, 5.0)),
+            panel_rounding,
+            Color32::from_black_alpha(55),
+        ));
+        shapes.push(egui::Shape::rect_filled(
+            r.translate(Vec2::new(0.0, 2.0)),
+            panel_rounding,
+            Color32::from_black_alpha(85),
+        ));
+        // Machined matte aluminum gradient body
+        let top_col = AudioTheme::lighten(theme.palette.bg_panel, 0.06);
+        let bot_col = AudioTheme::darken(theme.palette.bg_panel, 0.08);
+        let mut temp_mesh = egui::Mesh::default();
+        let max_r = (r.width().min(r.height()) * 0.5).max(0.0);
+        let cr = panel_rounding.nw.min(max_r);
+        let mut perim = Vec::with_capacity(24);
+        let corners = [
+            (egui::Pos2::new(r.max.x - cr, r.min.y + cr), -std::f32::consts::FRAC_PI_2, 0.0),
+            (egui::Pos2::new(r.max.x - cr, r.max.y - cr), 0.0, std::f32::consts::FRAC_PI_2),
+            (egui::Pos2::new(r.min.x + cr, r.max.y - cr), std::f32::consts::FRAC_PI_2, std::f32::consts::PI),
+            (egui::Pos2::new(r.min.x + cr, r.min.y + cr), std::f32::consts::PI, std::f32::consts::PI * 1.5),
+        ];
+        for (c, a0, a1) in corners {
+            for i in 0..=4 {
+                let a = a0 + (a1 - a0) * (i as f32 / 4.0);
+                perim.push(c + Vec2::angled(a) * cr);
+            }
+        }
+        temp_mesh.vertices.push(egui::epaint::Vertex {
+            pos: r.center(),
+            uv: egui::epaint::WHITE_UV,
+            color: AudioTheme::lerp_color(top_col, bot_col, 0.5),
+        });
+        for &p in &perim {
+            let t = ((p.y - r.min.y) / r.height()).clamp(0.0, 1.0);
+            temp_mesh.vertices.push(egui::epaint::Vertex {
+                pos: p,
+                uv: egui::epaint::WHITE_UV,
+                color: AudioTheme::lerp_color(top_col, bot_col, t),
+            });
+        }
+        let n = perim.len() as u32;
+        for i in 0..n {
+            temp_mesh.add_triangle(0, 1 + i, 1 + (i + 1) % n);
+        }
+        shapes.push(egui::Shape::mesh(temp_mesh));
+        // Outer machined border + top rim catch-light
+        shapes.push(egui::Shape::rect_stroke(
+            r,
+            panel_rounding,
+            Stroke::new(1.0, Color32::from_black_alpha(150)),
+        ));
+        shapes.push(egui::Shape::rect_stroke(
+            r.shrink(1.0),
+            egui::Rounding::same((cr - 1.0).max(0.0)),
+            Stroke::new(1.0, Color32::from_white_alpha(26)),
+        ));
+        ui.painter().set(bg_idx, egui::Shape::Vec(shapes));
+        return;
+    }
+
     let frame = egui::Frame::none()
         .fill(theme.palette.bg_panel)
         .stroke(Stroke::new(1.0, theme.palette.border))
-        .rounding(theme.rounding(6.0))
+        .rounding(panel_rounding)
         .inner_margin(egui::Margin::same(10.0));
 
-    let resp = frame.show(ui, |ui| {
+    frame.show(ui, |ui| {
         ui.horizontal(|ui| {
             ui.label(
                 egui::RichText::new(title.to_uppercase())
@@ -161,20 +259,6 @@ pub fn rack_module(
         }
         add_contents(ui);
     });
-
-    if theme.skin == Skin::Skeuomorphic {
-        let r = resp.response.rect;
-        let painter = ui.painter();
-        for c in [
-            r.left_top() + Vec2::new(6.0, 6.0),
-            r.right_top() + Vec2::new(-6.0, 6.0),
-            r.left_bottom() + Vec2::new(6.0, -6.0),
-            r.right_bottom() + Vec2::new(-6.0, -6.0),
-        ] {
-            painter.circle_filled(c, 2.5, AudioTheme::darken(theme.palette.bg_panel, 0.45));
-            painter.line_segment([c - Vec2::new(1.5, 1.5), c + Vec2::new(1.5, 1.5)], Stroke::new(0.8, Color32::from_white_alpha(45)));
-        }
-    }
 }
 
 // ---------------- 5. TRANSPORT BAR ----------------

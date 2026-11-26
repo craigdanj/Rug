@@ -155,7 +155,7 @@ pub fn envelope_editor(ui: &mut Ui, adsr: &mut AdsrState, size: Vec2, theme: &Au
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         theme.paint_recessed_rect(painter, rect, 4.0);
-        if theme.skin == crate::theme::Skin::Hybrid {
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
             for i in 1..4 {
                 let t = i as f32 / 4.0;
                 let gx = rect.min.x + rect.width() * t;
@@ -166,9 +166,10 @@ pub fn envelope_editor(ui: &mut Ui, adsr: &mut AdsrState, size: Vec2, theme: &Au
             }
         }
         let pts = vec![p0, p_a, p_d, p_s, p_r];
-        if theme.skin == crate::theme::Skin::Hybrid {
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
             let mut mesh = egui::Mesh::default();
-            let top_col = AudioTheme::with_alpha(theme.palette.accent_secondary, 70);
+            let top_alpha = if theme.skin == crate::theme::Skin::Skeuomorphic { 105 } else { 70 };
+            let top_col = AudioTheme::with_alpha(theme.palette.accent_secondary, top_alpha);
             let bot_col = AudioTheme::with_alpha(theme.palette.accent_secondary, 8);
             for (i, &p) in pts.iter().enumerate() {
                 let t_y = ((p.y - rect.min.y) / rect.height()).clamp(0.0, 1.0);
@@ -182,7 +183,7 @@ pub fn envelope_editor(ui: &mut Ui, adsr: &mut AdsrState, size: Vec2, theme: &Au
                 }
             }
             painter.add(Shape::mesh(mesh));
-            painter.add(Shape::line(pts.clone(), Stroke::new(4.5, AudioTheme::with_alpha(theme.palette.accent_secondary, 35))));
+            painter.add(Shape::line(pts.clone(), Stroke::new(4.5, AudioTheme::with_alpha(theme.palette.accent_secondary, 40))));
         }
         painter.add(Shape::line(pts, Stroke::new(2.0, theme.palette.accent_secondary)));
         for pt in [p_a, p_d, p_s] {
@@ -253,7 +254,7 @@ pub fn eq_curve_editor(ui: &mut Ui, bands: &mut [EqBand], size: Vec2, theme: &Au
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         theme.paint_recessed_rect(painter, rect, 4.0);
-        if theme.skin == crate::theme::Skin::Hybrid {
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
             for i in 1..4 {
                 let gx = rect.min.x + rect.width() * (i as f32 / 4.0);
                 painter.line_segment(
@@ -282,12 +283,19 @@ pub fn eq_curve_editor(ui: &mut Ui, bands: &mut [EqBand], size: Vec2, theme: &Au
                 )
             })
             .collect();
-        if theme.skin == crate::theme::Skin::Hybrid {
+        if matches!(theme.skin, crate::theme::Skin::Hybrid | crate::theme::Skin::Skeuomorphic) {
             let mut mesh = egui::Mesh::default();
             let base_y = rect.center().y;
-            let peak_col = AudioTheme::with_alpha(theme.palette.accent, 65);
+            let is_skeuo = theme.skin == crate::theme::Skin::Skeuomorphic;
             let zero_col = AudioTheme::with_alpha(theme.palette.accent, 6);
+            let n = (curve.len() - 1).max(1) as f32;
             for (i, &p) in curve.iter().enumerate() {
+                let peak_col = if is_skeuo {
+                    let blend = AudioTheme::lerp_color(theme.palette.accent_secondary, theme.palette.accent, i as f32 / n);
+                    AudioTheme::with_alpha(blend, 110)
+                } else {
+                    AudioTheme::with_alpha(theme.palette.accent, 65)
+                };
                 mesh.vertices.push(egui::epaint::Vertex { pos: p, uv: egui::epaint::WHITE_UV, color: peak_col });
                 mesh.vertices.push(egui::epaint::Vertex { pos: Pos2::new(p.x, base_y), uv: egui::epaint::WHITE_UV, color: zero_col });
                 if i > 0 {
@@ -297,7 +305,7 @@ pub fn eq_curve_editor(ui: &mut Ui, bands: &mut [EqBand], size: Vec2, theme: &Au
                 }
             }
             painter.add(Shape::mesh(mesh));
-            painter.add(Shape::line(curve.clone(), Stroke::new(4.5, AudioTheme::with_alpha(theme.palette.accent, 36))));
+            painter.add(Shape::line(curve.clone(), Stroke::new(4.8, AudioTheme::with_alpha(theme.palette.accent, 42))));
         }
         painter.add(Shape::line(curve, Stroke::new(2.0, theme.palette.accent)));
 

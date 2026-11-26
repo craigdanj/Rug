@@ -151,16 +151,47 @@ impl<'a> RotaryKnob<'a> {
 
             match self.theme.skin {
                 Skin::Skeuomorphic => {
-                    painter.circle_filled(center + Vec2::new(0.0, 3.0), radius, Color32::from_black_alpha(130));
-                    painter.circle_filled(center, radius, AudioTheme::darken(self.theme.palette.bg_panel, 0.25));
-                    painter.circle_filled(center, radius * 0.84, AudioTheme::lighten(self.theme.palette.bg_panel, 0.08));
-                    for i in 0..16 {
-                        let a = (i as f32 / 16.0) * PI * 2.0;
-                        let p1 = center + Vec2::angled(a) * (radius * 0.85);
-                        let p2 = center + Vec2::angled(a) * radius;
-                        painter.line_segment([p1, p2], Stroke::new(1.0, Color32::from_white_alpha(25)));
-                    }
-                    painter.circle_stroke(center, radius, Stroke::new(1.0, Color32::from_black_alpha(180)));
+                    // Deep cast drop shadow beneath the matte anodized knob
+                    AudioTheme::paint_radial_gradient_circle(
+                        painter,
+                        center + Vec2::new(0.0, 4.5),
+                        radius * 1.28,
+                        Color32::from_black_alpha(150),
+                        Color32::TRANSPARENT,
+                    );
+                    // Subtle recessed mounting collar
+                    painter.circle_filled(center, radius + 1.5, AudioTheme::darken(self.theme.palette.bg_recessed, 0.2));
+                    // Sculpted matte anodized cylindrical body
+                    AudioTheme::paint_directional_circle(
+                        painter,
+                        center,
+                        radius,
+                        AudioTheme::lighten(self.theme.palette.bg_panel, 0.08),
+                        AudioTheme::darken(self.theme.palette.bg_panel, 0.28),
+                    );
+                    // Subtle recessed top face bevel
+                    AudioTheme::paint_directional_circle(
+                        painter,
+                        center,
+                        radius * 0.88,
+                        AudioTheme::lighten(self.theme.palette.bg_panel, 0.04),
+                        AudioTheme::darken(self.theme.palette.bg_panel, 0.16),
+                    );
+                    // Crisp top-arc specular rim highlight (machined bevel catch-light)
+                    draw_arc(
+                        painter,
+                        center,
+                        radius - 0.8,
+                        -PI * 0.82,
+                        -PI * 0.18,
+                        Stroke::new(1.1, Color32::from_white_alpha(68)),
+                    );
+                    let outer_rim = if response.hovered() || response.dragged() {
+                        AudioTheme::lerp_color(Color32::from_black_alpha(180), self.theme.palette.accent, 0.5)
+                    } else {
+                        Color32::from_black_alpha(190)
+                    };
+                    painter.circle_stroke(center, radius, Stroke::new(1.1, outer_rim));
                 }
                 Skin::Hybrid => {
                     AudioTheme::paint_radial_gradient_circle(
@@ -197,17 +228,36 @@ impl<'a> RotaryKnob<'a> {
             }
 
             let dir = Vec2::angled(val_ang);
-            if self.theme.skin == Skin::Hybrid {
-                painter.line_segment(
-                    [center + dir * (radius * 0.28), center + dir * (radius * 0.82)],
-                    Stroke::new(4.0, AudioTheme::with_alpha(self.theme.palette.accent, 50)),
-                );
-                painter.circle_filled(center, radius * 0.16, AudioTheme::darken(self.theme.palette.bg_panel, 0.22));
+            match self.theme.skin {
+                Skin::Skeuomorphic => {
+                    // Glowing luminous indicator bar inset on matte cap
+                    painter.line_segment(
+                        [center + dir * (radius * 0.32), center + dir * (radius * 0.78)],
+                        Stroke::new(5.5, AudioTheme::with_alpha(self.theme.palette.accent, 55)),
+                    );
+                    painter.line_segment(
+                        [center + dir * (radius * 0.32), center + dir * (radius * 0.78)],
+                        Stroke::new(2.6, self.theme.palette.accent),
+                    );
+                }
+                Skin::Hybrid => {
+                    painter.line_segment(
+                        [center + dir * (radius * 0.28), center + dir * (radius * 0.82)],
+                        Stroke::new(4.0, AudioTheme::with_alpha(self.theme.palette.accent, 50)),
+                    );
+                    painter.circle_filled(center, radius * 0.16, AudioTheme::darken(self.theme.palette.bg_panel, 0.22));
+                    painter.line_segment(
+                        [center + dir * (radius * 0.3), center + dir * (radius * 0.85)],
+                        Stroke::new(2.2, self.theme.palette.accent),
+                    );
+                }
+                Skin::Flat => {
+                    painter.line_segment(
+                        [center + dir * (radius * 0.3), center + dir * (radius * 0.85)],
+                        Stroke::new(2.2, self.theme.palette.accent),
+                    );
+                }
             }
-            painter.line_segment(
-                [center + dir * (radius * 0.3), center + dir * (radius * 0.85)],
-                Stroke::new(2.2, self.theme.palette.accent),
-            );
 
             let text = if response.hovered() || response.dragged() {
                 self.scale.format(*self.value, self.unit)
@@ -313,38 +363,51 @@ impl<'a> Fader<'a> {
             let norm = self.scale.normalize(*self.value);
 
             if self.vertical {
+                let is_skeuo = self.theme.skin == Skin::Skeuomorphic;
+                let track_w = if is_skeuo { 14.0 } else { 6.0 };
                 let track_rect = Rect::from_center_size(
                     Pos2::new(rect.center().x, rect.min.y + self.length * 0.5),
-                    Vec2::new(6.0, self.length - 12.0),
+                    Vec2::new(track_w, self.length - 12.0),
                 );
-                self.theme.paint_recessed_rect(painter, track_rect, 3.0);
+                self.theme.paint_recessed_rect(painter, track_rect, if is_skeuo { 7.0 } else { 3.0 });
+
+                if is_skeuo {
+                    // Slim recessed center rail inside the pill well
+                    painter.line_segment(
+                        [Pos2::new(track_rect.center().x, track_rect.min.y + 8.0), Pos2::new(track_rect.center().x, track_rect.max.y - 8.0)],
+                        Stroke::new(2.0, Color32::from_black_alpha(180)),
+                    );
+                }
 
                 for i in 0..=8 {
                     let y = track_rect.min.y + (i as f32 / 8.0) * track_rect.height();
-                    let w = if i % 2 == 0 { 6.0 } else { 3.5 };
+                    let w = if i % 2 == 0 { 5.0 } else { 3.0 };
                     painter.line_segment(
-                        [Pos2::new(track_rect.min.x - 4.0 - w, y), Pos2::new(track_rect.min.x - 4.0, y)],
+                        [Pos2::new(track_rect.min.x - 3.0 - w, y), Pos2::new(track_rect.min.x - 3.0, y)],
                         Stroke::new(1.0, self.theme.palette.border),
                     );
                 }
 
                 if let Some(lvl) = self.meter_level {
-                    let h = track_rect.height() * lvl;
+                    let h = (track_rect.height() - 8.0) * lvl;
+                    let inset_x = if is_skeuo { 5.0 } else { 1.0 };
                     let m_rect = Rect::from_min_max(
-                        Pos2::new(track_rect.min.x + 1.0, track_rect.max.y - h),
-                        Pos2::new(track_rect.max.x - 1.0, track_rect.max.y),
+                        Pos2::new(track_rect.min.x + inset_x, track_rect.max.y - 4.0 - h),
+                        Pos2::new(track_rect.max.x - inset_x, track_rect.max.y - 4.0),
                     );
-                    painter.rect_filled(m_rect, 1.0, self.theme.palette.meter_low);
+                    let m_col = if is_skeuo { self.theme.palette.accent } else { self.theme.palette.meter_low };
+                    painter.rect_filled(m_rect, 1.5, m_col);
                 }
 
                 let cap_y = track_rect.max.y - norm * track_rect.height();
-                let cap_rect = Rect::from_center_size(Pos2::new(track_rect.center().x, cap_y), Vec2::new(24.0, 15.0));
+                let cap_size = if is_skeuo { Vec2::new(24.0, 12.0) } else { Vec2::new(24.0, 15.0) };
+                let cap_rect = Rect::from_center_size(Pos2::new(track_rect.center().x, cap_y), cap_size);
                 let cap_col = match self.theme.skin {
-                    Skin::Skeuomorphic => AudioTheme::lighten(self.theme.palette.bg_panel, 0.25),
+                    Skin::Skeuomorphic => AudioTheme::lighten(self.theme.palette.bg_panel, 0.08),
                     Skin::Hybrid => AudioTheme::lighten(self.theme.palette.bg_panel, 0.14),
                     Skin::Flat => self.theme.palette.bg_panel,
                 };
-                self.theme.paint_raised_rect(painter, cap_rect, cap_col, 2.5);
+                self.theme.paint_raised_rect(painter, cap_rect, cap_col, if is_skeuo { 4.5 } else { 2.5 });
                 if self.theme.skin == Skin::Hybrid {
                     for offset in [-3.5f32, 3.5] {
                         painter.line_segment(
@@ -353,9 +416,10 @@ impl<'a> Fader<'a> {
                         );
                     }
                 }
+                let indicator_col = if is_skeuo { self.theme.palette.text_primary } else { self.theme.palette.accent };
                 painter.line_segment(
-                    [Pos2::new(cap_rect.min.x + 3.0, cap_y), Pos2::new(cap_rect.max.x - 3.0, cap_y)],
-                    Stroke::new(2.0, self.theme.palette.accent),
+                    [Pos2::new(cap_rect.min.x + 5.0, cap_y), Pos2::new(cap_rect.max.x - 5.0, cap_y)],
+                    Stroke::new(2.0, indicator_col),
                 );
 
                 painter.text(

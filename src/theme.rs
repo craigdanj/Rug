@@ -252,21 +252,35 @@ impl AudioTheme {
         let r = self.rounding(radius);
         match self.skin {
             Skin::Skeuomorphic => {
+                // Soft layered ambient shadow for machined tactile depth
                 painter.rect_filled(
-                    rect.translate(Vec2::new(0.0, 2.0)),
+                    rect.translate(Vec2::new(0.0, 3.0)),
                     r,
-                    Color32::from_black_alpha(120),
+                    Color32::from_black_alpha(70),
                 );
-                painter.rect_filled(rect, r, base);
-                let top_half = Rect::from_min_max(rect.min, Pos2::new(rect.max.x, rect.center().y));
-                painter.rect_filled(top_half, r, Color32::from_white_alpha(18));
+                painter.rect_filled(
+                    rect.translate(Vec2::new(0.0, 1.5)),
+                    r,
+                    Color32::from_black_alpha(95),
+                );
+                // Smooth matte anodized vertical gradient
+                Self::paint_vertical_gradient_rect(
+                    painter,
+                    rect,
+                    r,
+                    Self::lighten(base, 0.11),
+                    Self::darken(base, 0.13),
+                );
+                // Crisp outer contour
                 painter.rect_stroke(rect, r, Stroke::new(1.0, Self::darken(base, 0.45)));
+                // Subtle top specular rim highlight
+                let inset = (r.nw + 1.0).min(rect.width() * 0.4);
                 painter.line_segment(
                     [
-                        Pos2::new(rect.min.x + radius, rect.min.y + 1.0),
-                        Pos2::new(rect.max.x - radius, rect.min.y + 1.0),
+                        Pos2::new(rect.min.x + inset, rect.min.y + 1.0),
+                        Pos2::new(rect.max.x - inset, rect.min.y + 1.0),
                     ],
-                    Stroke::new(1.0, Color32::from_white_alpha(55)),
+                    Stroke::new(1.0, Color32::from_white_alpha(52)),
                 );
             }
             Skin::Hybrid => {
@@ -304,16 +318,36 @@ impl AudioTheme {
         let r = self.rounding(radius);
         match self.skin {
             Skin::Skeuomorphic => {
-                painter.rect_filled(rect, r, self.palette.bg_recessed);
-                painter.line_segment(
-                    [Pos2::new(rect.min.x + 1.0, rect.min.y + 1.0), Pos2::new(rect.max.x - 1.0, rect.min.y + 1.0)],
-                    Stroke::new(2.0, Color32::from_black_alpha(140)),
+                // Deep obsidian recessed well with subtle depth gradient
+                Self::paint_vertical_gradient_rect(
+                    painter,
+                    rect,
+                    r,
+                    Self::darken(self.palette.bg_recessed, 0.35),
+                    Self::lighten(self.palette.bg_recessed, 0.04),
                 );
-                painter.line_segment(
-                    [Pos2::new(rect.min.x + 1.0, rect.max.y), Pos2::new(rect.max.x - 1.0, rect.max.y)],
-                    Stroke::new(1.0, Color32::from_white_alpha(30)),
+                // Inner top recess shadow
+                let top_band = Rect::from_min_max(
+                    rect.min + Vec2::new(1.0, 1.0),
+                    Pos2::new(rect.max.x - 1.0, (rect.min.y + 8.0).min(rect.max.y)),
                 );
-                painter.rect_stroke(rect, r, Stroke::new(1.0, Color32::from_black_alpha(160)));
+                Self::paint_vertical_gradient_rect(
+                    painter,
+                    top_band,
+                    Rounding::same(r.nw.min(4.0)),
+                    Color32::from_black_alpha(95),
+                    Color32::TRANSPARENT,
+                );
+                // Crisp outer dark rim + bottom metallic catch-light
+                painter.rect_stroke(rect, r, Stroke::new(1.0, Color32::from_black_alpha(175)));
+                let inset = (r.sw + 1.0).min(rect.width() * 0.4);
+                painter.line_segment(
+                    [
+                        Pos2::new(rect.min.x + inset, rect.max.y + 0.5),
+                        Pos2::new(rect.max.x - inset, rect.max.y + 0.5),
+                    ],
+                    Stroke::new(1.0, Color32::from_white_alpha(36)),
+                );
             }
             Skin::Hybrid => {
                 Self::paint_vertical_gradient_rect(
@@ -340,29 +374,44 @@ impl AudioTheme {
         }
     }
 
-    /// Optional glass glare + subtle scanlines for Skeuomorphic screens, or soft inner shadow for Hybrid.
+    /// Ambient glass finish for screens: soft bottom accent glow + top bezel vignette for Skeuomorphic.
     pub fn paint_screen_overlay(&self, painter: &egui::Painter, rect: Rect) {
         match self.skin {
             Skin::Skeuomorphic => {
-                let mut y = rect.min.y + 2.0;
-                while y < rect.max.y {
-                    painter.line_segment(
-                        [Pos2::new(rect.min.x, y), Pos2::new(rect.max.x, y)],
-                        Stroke::new(1.0, Color32::from_black_alpha(28)),
-                    );
-                    y += 4.0;
-                }
-                let glare = vec![
-                    rect.left_top(),
-                    Pos2::new(rect.min.x + rect.width() * 0.55, rect.min.y),
-                    Pos2::new(rect.min.x + rect.width() * 0.25, rect.max.y),
-                    rect.left_bottom(),
-                ];
-                painter.add(Shape::convex_polygon(
-                    glare,
-                    Color32::from_white_alpha(12),
-                    Stroke::NONE,
-                ));
+                // Soft bottom-up ambient OLED accent glow
+                let glow_h = (rect.height() * 0.38).min(36.0);
+                let bottom_glow = Rect::from_min_max(
+                    Pos2::new(rect.min.x + 1.0, (rect.max.y - glow_h).max(rect.min.y)),
+                    rect.max - Vec2::new(1.0, 1.0),
+                );
+                Self::paint_vertical_gradient_rect(
+                    painter,
+                    bottom_glow,
+                    Rounding::same(3.0),
+                    Color32::TRANSPARENT,
+                    Self::with_alpha(self.palette.accent, 34),
+                );
+                // Crisp subtle bottom accent rim reflection
+                let inset = (rect.width() * 0.12).min(10.0);
+                painter.line_segment(
+                    [
+                        Pos2::new(rect.min.x + inset, rect.max.y - 1.0),
+                        Pos2::new(rect.max.x - inset, rect.max.y - 1.0),
+                    ],
+                    Stroke::new(1.0, Self::with_alpha(self.palette.accent, 75)),
+                );
+                // Subtle top glass bezel reflection
+                let top_shadow = Rect::from_min_max(
+                    rect.min + Vec2::new(1.0, 1.0),
+                    Pos2::new(rect.max.x - 1.0, (rect.min.y + 10.0).min(rect.max.y)),
+                );
+                Self::paint_vertical_gradient_rect(
+                    painter,
+                    top_shadow,
+                    Rounding::same(3.0),
+                    Color32::from_black_alpha(65),
+                    Color32::TRANSPARENT,
+                );
             }
             Skin::Hybrid => {
                 let top_shadow = Rect::from_min_max(
