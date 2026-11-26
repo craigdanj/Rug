@@ -23,6 +23,9 @@ struct AudioShowcase {
     switch_idx: usize,
     seg_idx: usize,
     preset_idx: usize,
+    preset_dirty: bool,
+    slot_b_active: bool,
+    saved_slot: (f32, f32, f32),
     search_text: String,
     transport: TransportState,
     wf_state: WaveformState,
@@ -52,6 +55,9 @@ impl Default for AudioShowcase {
             switch_idx: 1,
             seg_idx: 1,
             preset_idx: 0,
+            preset_dirty: true,
+            slot_b_active: false,
+            saved_slot: (480.0, 0.65, -0.25),
             search_text: String::new(),
             transport: TransportState::default(),
             wf_state: WaveformState::default(),
@@ -84,9 +90,7 @@ impl eframe::App for AudioShowcase {
         self.time += ctx.input(|i| i.unstable_dt).min(0.05);
         ctx.request_repaint();
 
-        let mut visuals = egui::Visuals::dark();
-        visuals.panel_fill = self.theme.palette.bg_base;
-        ctx.set_visuals(visuals);
+        self.theme.apply_to_ctx(ctx);
 
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.horizontal_wrapped(|ui| {
@@ -105,6 +109,7 @@ impl eframe::App for AudioShowcase {
                 if ui.button("Cyan").clicked() { self.theme.palette = ColorPalette::studio_cyan(); }
                 if ui.button("Amber").clicked() { self.theme.palette = ColorPalette::vintage_amber(); }
                 if ui.button("Emerald").clicked() { self.theme.palette = ColorPalette::acid_emerald(); }
+                if ui.button("Slate").clicked() { self.theme.palette = ColorPalette::bassmaker_slate(); }
                 if ui.button("Nordic").clicked() { self.theme.palette = ColorPalette::light_nordic(); }
                 ui.separator();
                 ui.label("Accent:");
@@ -118,7 +123,30 @@ impl eframe::App for AudioShowcase {
             ui.horizontal(|ui| {
                 transport_bar(ui, &mut self.transport, &self.theme);
                 ui.separator();
-                preset_bar(ui, &["Warm Analog Pad", "Sub Bass 808", "Tape Delay"], &mut self.preset_idx, true, &self.theme);
+                match preset_bar_ex(
+                    ui,
+                    &["Warm Analog Pad", "Sub Bass 808", "Tape Delay"],
+                    &mut self.preset_idx,
+                    self.preset_dirty,
+                    &mut self.slot_b_active,
+                    &self.theme,
+                ) {
+                    PresetAction::Changed(_) => self.preset_dirty = false,
+                    PresetAction::ToggleAB => {
+                        let cur = (self.cutoff, self.resonance, self.pan);
+                        (self.cutoff, self.resonance, self.pan) = self.saved_slot;
+                        self.saved_slot = cur;
+                    }
+                    PresetAction::Save => self.preset_dirty = false,
+                    PresetAction::Init => {
+                        self.cutoff = 1000.0;
+                        self.resonance = 0.2;
+                        self.pan = 0.0;
+                        self.fader_db = 0.0;
+                        self.preset_dirty = false;
+                    }
+                    PresetAction::None => {}
+                }
                 styled_text_input(ui, &mut self.search_text, "Search presets...", 130.0, &self.theme);
             });
         });

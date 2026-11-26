@@ -76,6 +76,27 @@ impl ColorPalette {
             ..Self::studio_cyan()
         }
     }
+
+    pub fn bassmaker_slate() -> Self {
+        Self {
+            bg_base: Color32::from_rgb(22, 25, 32),
+            bg_panel: Color32::from_rgb(38, 42, 52),
+            bg_recessed: Color32::from_rgb(12, 14, 18),
+            border: Color32::from_rgb(66, 72, 86),
+            text_primary: Color32::from_rgb(236, 240, 248),
+            text_muted: Color32::from_rgb(142, 150, 168),
+            accent: Color32::from_rgb(249, 138, 66),
+            accent_secondary: Color32::from_rgb(138, 108, 255),
+            ..Self::studio_cyan()
+        }
+    }
+
+    pub fn is_light(&self) -> bool {
+        let luma = 0.2126 * self.bg_base.r() as f32
+            + 0.7152 * self.bg_base.g() as f32
+            + 0.0722 * self.bg_base.b() as f32;
+        luma > 128.0
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,6 +117,49 @@ impl Default for AudioTheme {
 impl AudioTheme {
     pub fn new(skin: Skin, palette: ColorPalette) -> Self {
         Self { skin, palette }
+    }
+
+    /// Syncs native egui popups, tooltips, menus, and scrollbars to match this AudioTheme.
+    pub fn apply_to_ctx(&self, ctx: &egui::Context) {
+        let mut visuals = if self.palette.is_light() {
+            egui::Visuals::light()
+        } else {
+            egui::Visuals::dark()
+        };
+        let p = self.palette;
+        visuals.panel_fill = p.bg_base;
+        visuals.window_fill = p.bg_panel;
+        visuals.window_stroke = Stroke::new(1.0, p.border);
+        visuals.window_rounding = self.rounding(6.0);
+        visuals.extreme_bg_color = p.bg_recessed;
+        visuals.faint_bg_color = Self::lerp_color(p.bg_base, p.bg_panel, 0.5);
+        visuals.selection.bg_fill = Self::with_alpha(p.accent, 65);
+        visuals.selection.stroke = Stroke::new(1.0, p.accent);
+
+        visuals.widgets.noninteractive.bg_fill = p.bg_panel;
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, p.border);
+        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, p.text_primary);
+
+        visuals.widgets.inactive.bg_fill = p.bg_panel;
+        visuals.widgets.inactive.weak_bg_fill = p.bg_panel;
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, p.border);
+        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, p.text_primary);
+
+        visuals.widgets.hovered.bg_fill = if p.is_light() {
+            Self::darken(p.bg_panel, 0.06)
+        } else {
+            Self::lighten(p.bg_panel, 0.08)
+        };
+        visuals.widgets.hovered.weak_bg_fill = visuals.widgets.hovered.bg_fill;
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, p.accent);
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, p.text_primary);
+
+        visuals.widgets.active.bg_fill = Self::with_alpha(p.accent, 90);
+        visuals.widgets.active.weak_bg_fill = Self::with_alpha(p.accent, 90);
+        visuals.widgets.active.bg_stroke = Stroke::new(1.2, p.accent);
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0, p.text_primary);
+
+        ctx.set_visuals(visuals);
     }
 
     pub fn rounding(&self, base: f32) -> Rounding {
@@ -250,29 +314,31 @@ impl AudioTheme {
     /// Paints a raised surface (panel, button cap, fader cap) according to active skin.
     pub fn paint_raised_rect(&self, painter: &egui::Painter, rect: Rect, base: Color32, radius: f32) {
         let r = self.rounding(radius);
+        let light = self.palette.is_light();
         match self.skin {
             Skin::Skeuomorphic => {
-                // Soft layered ambient shadow for machined tactile depth
+                // Soft layered ambient shadow for machined tactile depth (lighter on Nordic)
                 painter.rect_filled(
                     rect.translate(Vec2::new(0.0, 3.0)),
                     r,
-                    Color32::from_black_alpha(70),
+                    Color32::from_black_alpha(if light { 26 } else { 70 }),
                 );
                 painter.rect_filled(
                     rect.translate(Vec2::new(0.0, 1.5)),
                     r,
-                    Color32::from_black_alpha(95),
+                    Color32::from_black_alpha(if light { 38 } else { 95 }),
                 );
                 // Smooth matte anodized vertical gradient
                 Self::paint_vertical_gradient_rect(
                     painter,
                     rect,
                     r,
-                    Self::lighten(base, 0.11),
-                    Self::darken(base, 0.13),
+                    Self::lighten(base, if light { 0.06 } else { 0.11 }),
+                    Self::darken(base, if light { 0.07 } else { 0.13 }),
                 );
                 // Crisp outer contour
-                painter.rect_stroke(rect, r, Stroke::new(1.0, Self::darken(base, 0.45)));
+                let stroke_col = if light { self.palette.border } else { Self::darken(base, 0.45) };
+                painter.rect_stroke(rect, r, Stroke::new(1.0, stroke_col));
                 // Subtle top specular rim highlight
                 let inset = (r.nw + 1.0).min(rect.width() * 0.4);
                 painter.line_segment(
@@ -280,21 +346,21 @@ impl AudioTheme {
                         Pos2::new(rect.min.x + inset, rect.min.y + 1.0),
                         Pos2::new(rect.max.x - inset, rect.min.y + 1.0),
                     ],
-                    Stroke::new(1.0, Color32::from_white_alpha(52)),
+                    Stroke::new(1.0, Color32::from_white_alpha(if light { 160 } else { 52 })),
                 );
             }
             Skin::Hybrid => {
                 painter.rect_filled(
                     rect.translate(Vec2::new(0.0, 1.5)),
                     r,
-                    Color32::from_black_alpha(65),
+                    Color32::from_black_alpha(if light { 24 } else { 65 }),
                 );
                 Self::paint_vertical_gradient_rect(
                     painter,
                     rect,
                     r,
-                    Self::lighten(base, 0.08),
-                    Self::darken(base, 0.08),
+                    Self::lighten(base, if light { 0.05 } else { 0.08 }),
+                    Self::darken(base, if light { 0.05 } else { 0.08 }),
                 );
                 painter.rect_stroke(rect, r, Stroke::new(1.0, self.palette.border));
                 let inset = (radius + 1.0).min(rect.width() * 0.4);
@@ -303,7 +369,7 @@ impl AudioTheme {
                         Pos2::new(rect.min.x + inset, rect.min.y + 1.0),
                         Pos2::new(rect.max.x - inset, rect.min.y + 1.0),
                     ],
-                    Stroke::new(1.0, Color32::from_white_alpha(34)),
+                    Stroke::new(1.0, Color32::from_white_alpha(if light { 130 } else { 34 })),
                 );
             }
             Skin::Flat => {
@@ -316,17 +382,16 @@ impl AudioTheme {
     /// Paints a recessed screen, track, or meter well.
     pub fn paint_recessed_rect(&self, painter: &egui::Painter, rect: Rect, radius: f32) {
         let r = self.rounding(radius);
+        let light = self.palette.is_light();
         match self.skin {
             Skin::Skeuomorphic => {
-                // Deep obsidian recessed well with subtle depth gradient
                 Self::paint_vertical_gradient_rect(
                     painter,
                     rect,
                     r,
-                    Self::darken(self.palette.bg_recessed, 0.35),
+                    Self::darken(self.palette.bg_recessed, if light { 0.08 } else { 0.35 }),
                     Self::lighten(self.palette.bg_recessed, 0.04),
                 );
-                // Inner top recess shadow
                 let top_band = Rect::from_min_max(
                     rect.min + Vec2::new(1.0, 1.0),
                     Pos2::new(rect.max.x - 1.0, (rect.min.y + 8.0).min(rect.max.y)),
@@ -335,18 +400,18 @@ impl AudioTheme {
                     painter,
                     top_band,
                     Rounding::same(r.nw.min(4.0)),
-                    Color32::from_black_alpha(95),
+                    Color32::from_black_alpha(if light { 35 } else { 95 }),
                     Color32::TRANSPARENT,
                 );
-                // Crisp outer dark rim + bottom metallic catch-light
-                painter.rect_stroke(rect, r, Stroke::new(1.0, Color32::from_black_alpha(175)));
+                let rim_col = if light { self.palette.border } else { Color32::from_black_alpha(175) };
+                painter.rect_stroke(rect, r, Stroke::new(1.0, rim_col));
                 let inset = (r.sw + 1.0).min(rect.width() * 0.4);
                 painter.line_segment(
                     [
                         Pos2::new(rect.min.x + inset, rect.max.y + 0.5),
                         Pos2::new(rect.max.x - inset, rect.max.y + 0.5),
                     ],
-                    Stroke::new(1.0, Color32::from_white_alpha(36)),
+                    Stroke::new(1.0, Color32::from_white_alpha(if light { 145 } else { 36 })),
                 );
             }
             Skin::Hybrid => {
@@ -354,7 +419,7 @@ impl AudioTheme {
                     painter,
                     rect,
                     r,
-                    Self::darken(self.palette.bg_recessed, 0.22),
+                    Self::darken(self.palette.bg_recessed, if light { 0.06 } else { 0.22 }),
                     Self::lighten(self.palette.bg_recessed, 0.03),
                 );
                 painter.rect_stroke(rect, r, Stroke::new(1.0, self.palette.border));
@@ -364,7 +429,7 @@ impl AudioTheme {
                         Pos2::new(rect.min.x + inset, rect.max.y + 0.5),
                         Pos2::new(rect.max.x - inset, rect.max.y + 0.5),
                     ],
-                    Stroke::new(0.8, Color32::from_white_alpha(18)),
+                    Stroke::new(0.8, Color32::from_white_alpha(if light { 120 } else { 18 })),
                 );
             }
             Skin::Flat => {
@@ -376,9 +441,9 @@ impl AudioTheme {
 
     /// Ambient glass finish for screens: soft bottom accent glow + top bezel vignette for Skeuomorphic.
     pub fn paint_screen_overlay(&self, painter: &egui::Painter, rect: Rect) {
+        let light = self.palette.is_light();
         match self.skin {
             Skin::Skeuomorphic => {
-                // Soft bottom-up ambient OLED accent glow
                 let glow_h = (rect.height() * 0.38).min(36.0);
                 let bottom_glow = Rect::from_min_max(
                     Pos2::new(rect.min.x + 1.0, (rect.max.y - glow_h).max(rect.min.y)),
@@ -389,18 +454,16 @@ impl AudioTheme {
                     bottom_glow,
                     Rounding::same(3.0),
                     Color32::TRANSPARENT,
-                    Self::with_alpha(self.palette.accent, 34),
+                    Self::with_alpha(self.palette.accent, if light { 22 } else { 34 }),
                 );
-                // Crisp subtle bottom accent rim reflection
                 let inset = (rect.width() * 0.12).min(10.0);
                 painter.line_segment(
                     [
                         Pos2::new(rect.min.x + inset, rect.max.y - 1.0),
                         Pos2::new(rect.max.x - inset, rect.max.y - 1.0),
                     ],
-                    Stroke::new(1.0, Self::with_alpha(self.palette.accent, 75)),
+                    Stroke::new(1.0, Self::with_alpha(self.palette.accent, if light { 55 } else { 75 })),
                 );
-                // Subtle top glass bezel reflection
                 let top_shadow = Rect::from_min_max(
                     rect.min + Vec2::new(1.0, 1.0),
                     Pos2::new(rect.max.x - 1.0, (rect.min.y + 10.0).min(rect.max.y)),
@@ -409,7 +472,7 @@ impl AudioTheme {
                     painter,
                     top_shadow,
                     Rounding::same(3.0),
-                    Color32::from_black_alpha(65),
+                    Color32::from_black_alpha(if light { 24 } else { 65 }),
                     Color32::TRANSPARENT,
                 );
             }
@@ -422,7 +485,7 @@ impl AudioTheme {
                     painter,
                     top_shadow,
                     Rounding::same(2.0),
-                    Color32::from_black_alpha(48),
+                    Color32::from_black_alpha(if light { 20 } else { 48 }),
                     Color32::TRANSPARENT,
                 );
             }

@@ -277,6 +277,29 @@ impl<'a> RotaryKnob<'a> {
             );
         }
 
+        let formatted = self.scale.format(*self.value, self.unit);
+        let mut ctx_changed = false;
+        response.context_menu(|ui| {
+            ui.label(egui::RichText::new(format!("{}: {}", self.label, formatted)).strong());
+            ui.separator();
+            if ui.button("Reset to default").clicked() {
+                *self.value = self.default_value;
+                ctx_changed = true;
+                ui.close_menu();
+            }
+            if ui.button("Center (50%)").clicked() {
+                *self.value = self.scale.denormalize(0.5);
+                ctx_changed = true;
+                ui.close_menu();
+            }
+            if ui.button("Copy value").clicked() {
+                ui.output_mut(|o| o.copied_text = formatted.clone());
+                ui.close_menu();
+            }
+        });
+        if ctx_changed {
+            response.mark_changed();
+        }
         response
     }
 }
@@ -443,7 +466,26 @@ impl<'a> Fader<'a> {
             }
         }
 
-        response
+        let unit = if matches!(self.scale, ParamScale::Decibel { .. }) { "dB" } else { "" };
+        let formatted = self.scale.format(*self.value, unit);
+        let mut ctx_changed = false;
+        response.context_menu(|ui| {
+            ui.label(egui::RichText::new(format!("{}: {}", self.label, formatted)).strong());
+            ui.separator();
+            if ui.button("Reset to default").clicked() {
+                *self.value = self.default_value;
+                ctx_changed = true;
+                ui.close_menu();
+            }
+            if ui.button("Copy value").clicked() {
+                ui.output_mut(|o| o.copied_text = formatted.clone());
+                ui.close_menu();
+            }
+        });
+        if ctx_changed {
+            response.mark_changed();
+        }
+        response.on_hover_text(format!("{}: {}", self.label, formatted))
     }
 }
 
@@ -516,7 +558,7 @@ impl<'a> XyPad<'a> {
             self.theme.paint_screen_overlay(painter, rect);
         }
 
-        response
+        response.on_hover_text(format!("X: {:.2}  Y: {:.2}", *self.x, *self.y))
     }
 }
 
@@ -580,6 +622,6 @@ impl<'a> RangeSlider<'a> {
             }
         }
 
-        response
+        response.on_hover_text(format!("{:.0}% – {:.0}%", *self.low * 100.0, *self.high * 100.0))
     }
 }

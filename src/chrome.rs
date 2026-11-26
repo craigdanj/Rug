@@ -163,6 +163,53 @@ pub fn preset_bar(
     changed
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PresetAction {
+    None,
+    Changed(usize),
+    ToggleAB,
+    Save,
+    Init,
+}
+
+/// Extended preset selector bar with A/B compare toggle, Save, and Init actions.
+pub fn preset_bar_ex(
+    ui: &mut Ui,
+    presets: &[&str],
+    current: &mut usize,
+    dirty: bool,
+    slot_b_active: &mut bool,
+    theme: &AudioTheme,
+) -> PresetAction {
+    let mut action = PresetAction::None;
+    ui.horizontal(|ui| {
+        if preset_bar(ui, presets, current, dirty, theme) {
+            action = PresetAction::Changed(*current);
+        }
+        ui.add_space(4.0);
+        let ab_lbl = if *slot_b_active { "B" } else { "A" };
+        if toggle_button(
+            ui,
+            slot_b_active,
+            ab_lbl,
+            Vec2::new(34.0, 24.0),
+            Some(theme.palette.accent_secondary),
+            theme,
+        )
+        .clicked()
+        {
+            action = PresetAction::ToggleAB;
+        }
+        if push_button(ui, "SAVE", Vec2::new(42.0, 24.0), theme).clicked() {
+            action = PresetAction::Save;
+        }
+        if push_button(ui, "INIT", Vec2::new(38.0, 24.0), theme).clicked() {
+            action = PresetAction::Init;
+        }
+    });
+    action
+}
+
 // ---------------- 4. RACK MODULE / SECTION FRAME ----------------
 
 pub fn rack_module(
