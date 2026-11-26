@@ -142,11 +142,28 @@ pub fn spectrum_analyzer(ui: &mut Ui, bins_norm: &[f32], size: Vec2, theme: &Aud
             let y = rect.max.y - v.clamp(0.0, 1.0) * (rect.height() - 6.0) - 2.0;
             pts.push(Pos2::new(x, y));
         }
-        for p in &pts {
-            painter.line_segment(
-                [*p, Pos2::new(p.x, rect.max.y - 1.0)],
-                Stroke::new(2.0, AudioTheme::with_alpha(theme.palette.accent, 35)),
-            );
+        if theme.skin == crate::theme::Skin::Hybrid {
+            let mut mesh = egui::Mesh::default();
+            let top_col = AudioTheme::with_alpha(theme.palette.accent, 75);
+            let bot_col = AudioTheme::with_alpha(theme.palette.accent, 8);
+            for (i, &p) in pts.iter().enumerate() {
+                mesh.vertices.push(egui::epaint::Vertex { pos: p, uv: egui::epaint::WHITE_UV, color: top_col });
+                mesh.vertices.push(egui::epaint::Vertex { pos: Pos2::new(p.x, rect.max.y - 1.0), uv: egui::epaint::WHITE_UV, color: bot_col });
+                if i > 0 {
+                    let base = ((i - 1) * 2) as u32;
+                    mesh.add_triangle(base, base + 1, base + 2);
+                    mesh.add_triangle(base + 1, base + 3, base + 2);
+                }
+            }
+            painter.add(Shape::mesh(mesh));
+            painter.add(Shape::line(pts.clone(), Stroke::new(3.8, AudioTheme::with_alpha(theme.palette.accent, 38))));
+        } else {
+            for p in &pts {
+                painter.line_segment(
+                    [*p, Pos2::new(p.x, rect.max.y - 1.0)],
+                    Stroke::new(2.0, AudioTheme::with_alpha(theme.palette.accent, 35)),
+                );
+            }
         }
         painter.add(Shape::line(pts, Stroke::new(1.6, theme.palette.accent)));
     }

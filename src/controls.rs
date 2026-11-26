@@ -73,11 +73,31 @@ impl<'a> RotaryKnob<'a> {
             let painter = ui.painter();
             let center = Pos2::new(rect.center().x, rect.min.y + self.size * 0.5 + 4.0);
             let radius = self.size * 0.38;
-            let arc_radius = radius + 6.0;
+            let arc_radius = radius + 6.5;
             let start_ang = PI * 0.75;
             let sweep = PI * 1.5;
             let norm = self.scale.normalize(*self.value);
             let val_ang = start_ang + norm * sweep;
+
+            if self.theme.skin == Skin::Hybrid {
+                let ticks = 10;
+                for i in 0..=ticks {
+                    let t = i as f32 / ticks as f32;
+                    let a = start_ang + t * sweep;
+                    let is_major = i == 0 || i == ticks / 2 || i == ticks;
+                    let r0 = arc_radius + 3.0;
+                    let r1 = arc_radius + if is_major { 6.0 } else { 4.5 };
+                    let col = if is_major {
+                        AudioTheme::with_alpha(self.theme.palette.text_muted, 150)
+                    } else {
+                        AudioTheme::with_alpha(self.theme.palette.border, 150)
+                    };
+                    painter.line_segment(
+                        [center + Vec2::angled(a) * r0, center + Vec2::angled(a) * r1],
+                        Stroke::new(if is_major { 1.2 } else { 1.0 }, col),
+                    );
+                }
+            }
 
             draw_arc(
                 painter,
@@ -95,6 +115,16 @@ impl<'a> RotaryKnob<'a> {
                 (start_ang, val_ang)
             };
             if (a1 - a0).abs() > 0.01 {
+                if self.theme.skin == Skin::Hybrid {
+                    draw_arc(
+                        painter,
+                        center,
+                        arc_radius,
+                        a0,
+                        a1,
+                        Stroke::new(5.5, AudioTheme::with_alpha(self.theme.palette.accent, 36)),
+                    );
+                }
                 draw_arc(
                     painter,
                     center,
@@ -133,9 +163,32 @@ impl<'a> RotaryKnob<'a> {
                     painter.circle_stroke(center, radius, Stroke::new(1.0, Color32::from_black_alpha(180)));
                 }
                 Skin::Hybrid => {
-                    painter.circle_filled(center + Vec2::new(0.0, 1.5), radius, Color32::from_black_alpha(70));
-                    painter.circle_filled(center, radius, self.theme.palette.bg_panel);
-                    painter.circle_stroke(center, radius, Stroke::new(1.2, self.theme.palette.border));
+                    AudioTheme::paint_radial_gradient_circle(
+                        painter,
+                        center + Vec2::new(0.0, 2.5),
+                        radius * 1.15,
+                        Color32::from_black_alpha(105),
+                        Color32::TRANSPARENT,
+                    );
+                    painter.circle_filled(center, radius, AudioTheme::darken(self.theme.palette.bg_panel, 0.14));
+                    AudioTheme::paint_directional_circle(
+                        painter,
+                        center,
+                        radius * 0.86,
+                        AudioTheme::lighten(self.theme.palette.bg_panel, 0.12),
+                        AudioTheme::darken(self.theme.palette.bg_panel, 0.08),
+                    );
+                    painter.circle_stroke(
+                        center,
+                        radius * 0.86,
+                        Stroke::new(0.8, Color32::from_white_alpha(24)),
+                    );
+                    let rim_col = if response.hovered() || response.dragged() {
+                        AudioTheme::lerp_color(self.theme.palette.border, self.theme.palette.accent, 0.45)
+                    } else {
+                        self.theme.palette.border
+                    };
+                    painter.circle_stroke(center, radius, Stroke::new(1.2, rim_col));
                 }
                 Skin::Flat => {
                     painter.circle_filled(center, radius, self.theme.palette.bg_panel);
@@ -144,6 +197,13 @@ impl<'a> RotaryKnob<'a> {
             }
 
             let dir = Vec2::angled(val_ang);
+            if self.theme.skin == Skin::Hybrid {
+                painter.line_segment(
+                    [center + dir * (radius * 0.28), center + dir * (radius * 0.82)],
+                    Stroke::new(4.0, AudioTheme::with_alpha(self.theme.palette.accent, 50)),
+                );
+                painter.circle_filled(center, radius * 0.16, AudioTheme::darken(self.theme.palette.bg_panel, 0.22));
+            }
             painter.line_segment(
                 [center + dir * (radius * 0.3), center + dir * (radius * 0.85)],
                 Stroke::new(2.2, self.theme.palette.accent),
@@ -278,13 +338,21 @@ impl<'a> Fader<'a> {
                 }
 
                 let cap_y = track_rect.max.y - norm * track_rect.height();
-                let cap_rect = Rect::from_center_size(Pos2::new(track_rect.center().x, cap_y), Vec2::new(22.0, 14.0));
+                let cap_rect = Rect::from_center_size(Pos2::new(track_rect.center().x, cap_y), Vec2::new(24.0, 15.0));
                 let cap_col = match self.theme.skin {
                     Skin::Skeuomorphic => AudioTheme::lighten(self.theme.palette.bg_panel, 0.25),
-                    Skin::Hybrid => AudioTheme::lighten(self.theme.palette.bg_panel, 0.12),
+                    Skin::Hybrid => AudioTheme::lighten(self.theme.palette.bg_panel, 0.14),
                     Skin::Flat => self.theme.palette.bg_panel,
                 };
                 self.theme.paint_raised_rect(painter, cap_rect, cap_col, 2.5);
+                if self.theme.skin == Skin::Hybrid {
+                    for offset in [-3.5f32, 3.5] {
+                        painter.line_segment(
+                            [Pos2::new(cap_rect.min.x + 5.0, cap_y + offset), Pos2::new(cap_rect.max.x - 5.0, cap_y + offset)],
+                            Stroke::new(1.0, Color32::from_black_alpha(65)),
+                        );
+                    }
+                }
                 painter.line_segment(
                     [Pos2::new(cap_rect.min.x + 3.0, cap_y), Pos2::new(cap_rect.max.x - 3.0, cap_y)],
                     Stroke::new(2.0, self.theme.palette.accent),

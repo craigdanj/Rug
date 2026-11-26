@@ -146,7 +146,19 @@ pub fn rack_module(
                 toggle_button(ui, b, "ON", Vec2::new(42.0, 18.0), None, theme);
             }
         });
-        ui.add_space(6.0);
+        ui.add_space(4.0);
+        if theme.skin == Skin::Hybrid {
+            let y = ui.cursor().min.y;
+            let x0 = ui.max_rect().min.x;
+            let x1 = ui.max_rect().max.x;
+            ui.painter().line_segment(
+                [egui::Pos2::new(x0, y), egui::Pos2::new(x1, y)],
+                Stroke::new(1.0, AudioTheme::with_alpha(theme.palette.border, 110)),
+            );
+            ui.add_space(6.0);
+        } else {
+            ui.add_space(2.0);
+        }
         add_contents(ui);
     });
 
