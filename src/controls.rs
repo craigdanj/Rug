@@ -1,3 +1,10 @@
+//! Continuous audio parameter controls: [`RotaryKnob`], [`Fader`], [`XyPad`],
+//! and [`RangeSlider`].
+//!
+//! All controls support vertical/horizontal dragging, `Shift` fine-tuning,
+//! double-click or `Cmd/Ctrl+click` reset to default, scroll-wheel nudging,
+//! hover value readouts, and right-click context menus where applicable.
+
 use crate::{
     interaction::{handle_continuous_interaction, DragConfig},
     scale::ParamScale,
@@ -8,6 +15,8 @@ use std::f32::consts::PI;
 
 // ---------------- 1. ROTARY KNOB ----------------
 
+/// Continuous rotary dial with audio-native scaling, optional modulation ring,
+/// hover value readout, and right-click context menu (`Reset`, `Center`, `Copy`).
 pub struct RotaryKnob<'a> {
     value: &'a mut f32,
     default_value: f32,
@@ -318,6 +327,8 @@ fn draw_arc(painter: &egui::Painter, center: Pos2, radius: f32, a0: f32, a1: f32
 
 // ---------------- 2. VERTICAL / HORIZONTAL FADER ----------------
 
+/// Vertical or horizontal linear fader with optional embedded level meter,
+/// tick marks, hover value tooltip, and right-click context menu.
 pub struct Fader<'a> {
     value: &'a mut f32,
     default_value: f32,
@@ -491,6 +502,8 @@ impl<'a> Fader<'a> {
 
 // ---------------- 3. XY PAD ----------------
 
+/// Two-dimensional modulation pad (`0.0..=1.0` on both axes) with gridlines,
+/// crosshair guides, `Shift`/`Alt` axis-locking, double-click center reset, and hover tooltip.
 pub struct XyPad<'a> {
     x: &'a mut f32,
     y: &'a mut f32,
@@ -564,6 +577,7 @@ impl<'a> XyPad<'a> {
 
 // ---------------- 4. RANGE / DUAL-THUMB SLIDER ----------------
 
+/// Dual-thumb normalized range slider (`0.0..=1.0`, `low < high`) with hover readout.
 pub struct RangeSlider<'a> {
     low: &'a mut f32,
     high: &'a mut f32,

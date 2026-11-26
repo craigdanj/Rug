@@ -1,12 +1,21 @@
+//! Audio-native parameter scaling, display formatting, and text-to-value parsing.
+
+/// Defines how a continuous parameter maps between its plain domain value and
+/// normalized UI range (`0.0..=1.0`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ParamScale {
+    /// Uniform linear mapping between `min` and `max`.
     Linear { min: f32, max: f32 },
+    /// Logarithmic mapping (ideal for frequency cutoffs such as `20.0..=20000.0` Hz).
     Log { min: f32, max: f32 },
+    /// Decibel gain mapping where values at or below `min_db` format as `-inf dB`.
     Decibel { min_db: f32, max_db: f32 },
+    /// Center-zero symmetric range (`-max_abs..=+max_abs`) for pan, detune, or bipolar depth.
     Bipolar { max_abs: f32 },
 }
 
 impl ParamScale {
+    /// Maps a plain parameter value into normalized `0.0..=1.0` space.
     pub fn normalize(&self, value: f32) -> f32 {
         match *self {
             Self::Linear { min, max } => ((value - min) / (max - min)).clamp(0.0, 1.0),
@@ -25,6 +34,7 @@ impl ParamScale {
         }
     }
 
+    /// Maps a normalized `0.0..=1.0` value back into the plain parameter domain.
     pub fn denormalize(&self, norm: f32) -> f32 {
         let t = norm.clamp(0.0, 1.0);
         match *self {
@@ -38,10 +48,12 @@ impl ParamScale {
         }
     }
 
+    /// Returns `true` if this scale is center-zero (`ParamScale::Bipolar`).
     pub fn is_bipolar(&self) -> bool {
         matches!(self, Self::Bipolar { .. })
     }
 
+    /// Formats a plain parameter value with optional unit suffix (auto-scaling `Hz` to `kHz`).
     pub fn format(&self, value: f32, unit: &str) -> String {
         match *self {
             Self::Log { .. } if unit == "Hz" && value >= 1000.0 => {

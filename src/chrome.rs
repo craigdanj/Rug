@@ -1,3 +1,5 @@
+//! Studio chrome, numeric/text inputs, preset selectors, rack frames, and transport bars.
+
 use crate::{
     buttons::{push_button, toggle_button},
     interaction::{handle_continuous_interaction, DragConfig},
@@ -8,6 +10,9 @@ use egui::{Align2, Color32, FontId, Response, Sense, Stroke, TextEdit, Ui, Vec2}
 
 // ---------------- 1. SCRUBBABLE VALUE BOX ----------------
 
+/// Compact numeric readout supporting vertical drag scrubbing, `Shift` fine-tune,
+/// scroll nudging, and double-click inline text entry with unit parsing (e.g. `1.2k`, `-6dB`).
+/// Press `Enter` to commit or `Esc` to cancel.
 pub fn scrub_value_box(
     ui: &mut Ui,
     value: &mut f32,
@@ -74,6 +79,7 @@ pub fn scrub_value_box(
 
 // ---------------- 2. STYLED TEXT INPUT ----------------
 
+/// Single-line themed text input for preset search bars and track labels.
 pub fn styled_text_input(ui: &mut Ui, text: &mut String, hint: &str, width: f32, theme: &AudioTheme) -> Response {
     let frame = egui::Frame::none()
         .fill(theme.palette.bg_recessed)
@@ -95,6 +101,7 @@ pub fn styled_text_input(ui: &mut Ui, text: &mut String, hint: &str, width: f32,
 
 // ---------------- 3. PRESET SELECTOR BAR ----------------
 
+/// Compact `< [Preset Name] >` selector with clickable dropdown popup and dirty `*` indicator.
 pub fn preset_bar(
     ui: &mut Ui,
     presets: &[&str],
@@ -212,6 +219,7 @@ pub fn preset_bar_ex(
 
 // ---------------- 4. RACK MODULE / SECTION FRAME ----------------
 
+/// Themed module container with uppercase title header and optional inline `ON` bypass toggle.
 pub fn rack_module(
     ui: &mut Ui,
     title: &str,
@@ -368,6 +376,7 @@ impl Default for TransportState {
     }
 }
 
+/// Studio transport bar with `PLAY`, `STOP`, `REC`, scrubbable `BPM` readout, and `BAR:BEAT` clock.
 pub fn transport_bar(ui: &mut Ui, state: &mut TransportState, theme: &AudioTheme) {
     ui.horizontal(|ui| {
         toggle_button(ui, &mut state.playing, "PLAY", Vec2::new(56.0, 24.0), Some(theme.palette.meter_low), theme);

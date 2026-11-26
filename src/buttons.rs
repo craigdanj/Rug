@@ -1,8 +1,12 @@
+//! Momentary push buttons, latching toggle switches, multi-position selectors,
+//! segmented controls, and status LED indicators.
+
 use crate::theme::{AudioTheme, Skin};
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 
 // ---------------- 1. PUSH / MOMENTARY BUTTON ----------------
 
+/// Tactile momentary push button with hover highlight and pressed travel offset.
 pub fn push_button(ui: &mut Ui, label: &str, size: Vec2, theme: &AudioTheme) -> Response {
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     if ui.is_rect_visible(rect) {
@@ -30,6 +34,9 @@ pub fn push_button(ui: &mut Ui, label: &str, size: Vec2, theme: &AudioTheme) -> 
 
 // ---------------- 2. TOGGLE / LATCH BUTTON ----------------
 
+/// Latching toggle button with an integrated glowing LED indicator.
+///
+/// Pass `active_color: None` to default to `theme.palette.accent`.
 pub fn toggle_button(
     ui: &mut Ui,
     active: &mut bool,
@@ -78,6 +85,7 @@ pub fn toggle_button(
 
 // ---------------- 3. MULTI-POSITION HARDWARE SWITCH ----------------
 
+/// Vertical multi-position lever switch that cycles through `options` on each click.
 pub fn multi_switch(
     ui: &mut Ui,
     index: &mut usize,
@@ -131,6 +139,7 @@ pub fn multi_switch(
 
 // ---------------- 4. SEGMENTED CONTROL ----------------
 
+/// Horizontal mutually-exclusive mode selector bar (e.g., `MONO` / `STEREO` / `M/S`).
 pub fn segmented_control(
     ui: &mut Ui,
     selected: &mut usize,
@@ -177,6 +186,7 @@ pub fn segmented_control(
 
 // ---------------- 5. LED INDICATOR ----------------
 
+/// Non-interactive glowing status LED with a monospace caption (e.g., `CLIP`, `SYNC`).
 pub fn led_indicator(ui: &mut Ui, lit: bool, color: Color32, label: &str, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(42.0, 20.0), Sense::hover());
     if ui.is_rect_visible(rect) {

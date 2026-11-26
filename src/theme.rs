@@ -1,29 +1,52 @@
+//! Visual theming, switchable hardware/modern skins, color palettes, and
+//! vertex-colored `egui::Mesh` surface/glow painting primitives.
+
 use egui::{epaint::Vertex, Color32, Mesh, Pos2, Rect, Rounding, Shape, Stroke, Vec2};
 
+/// Visual rendering style applied across all `egui_audio_ui` widgets.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Skin {
+    /// Soft-machined matte anodized hardware pods, sculpted knobs with top-arc
+    /// specular highlights, pill-well faders, and soft bottom-up OLED screen glow.
     Skeuomorphic,
+    /// Modern pro-audio plugin aesthetic (subtle vertical gradients, dial ticks,
+    /// translucent curve fills, and restrained accent glow).
     Hybrid,
+    /// Clean minimal flat geometry with crisp 1px borders and zero glow/shadows.
     Flat,
 }
 
+/// Complete semantic color palette shared by all widgets and [`AudioTheme::apply_to_ctx`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ColorPalette {
+    /// Main window/canvas backdrop color.
     pub bg_base: Color32,
+    /// Elevated module panel and control cap surface color.
     pub bg_panel: Color32,
+    /// Recessed screen, meter well, and slider track background color.
     pub bg_recessed: Color32,
+    /// Default 1px border and gridline color.
     pub border: Color32,
+    /// High-contrast primary label and value text color.
     pub text_primary: Color32,
+    /// Secondary caption, tick, and inactive label color.
     pub text_muted: Color32,
+    /// Primary active parameter, arc, trace, and highlight color.
     pub accent: Color32,
+    /// Secondary modulation, envelope, and alternate-accent color.
     pub accent_secondary: Color32,
+    /// Safe/nominal signal level color (typically green).
     pub meter_low: Color32,
+    /// Mid/hot signal level color (typically amber/yellow).
     pub meter_mid: Color32,
+    /// Peak/clipping signal level color (typically red).
     pub meter_high: Color32,
+    /// Clipping LED, record-arm, and warning color.
     pub danger: Color32,
 }
 
 impl ColorPalette {
+    /// Dark studio graphite palette with electric cyan and violet accents.
     pub fn studio_cyan() -> Self {
         Self {
             bg_base: Color32::from_rgb(16, 18, 22),
@@ -41,6 +64,7 @@ impl ColorPalette {
         }
     }
 
+    /// Warm dark console palette with vintage amber and sky-blue accents.
     pub fn vintage_amber() -> Self {
         Self {
             bg_base: Color32::from_rgb(22, 19, 16),
@@ -55,6 +79,7 @@ impl ColorPalette {
         }
     }
 
+    /// High-contrast dark palette with acid emerald and warm gold accents.
     pub fn acid_emerald() -> Self {
         Self {
             accent: Color32::from_rgb(16, 235, 145),
@@ -63,6 +88,7 @@ impl ColorPalette {
         }
     }
 
+    /// Crisp light-mode palette with cool slate grays and cobalt/magenta accents.
     pub fn light_nordic() -> Self {
         Self {
             bg_base: Color32::from_rgb(226, 230, 236),
@@ -77,6 +103,7 @@ impl ColorPalette {
         }
     }
 
+    /// Matte anodized dark-slate palette with warm orange and violet accents.
     pub fn bassmaker_slate() -> Self {
         Self {
             bg_base: Color32::from_rgb(22, 25, 32),
@@ -91,6 +118,7 @@ impl ColorPalette {
         }
     }
 
+    /// Returns `true` when `bg_base` has high relative luminance (light theme).
     pub fn is_light(&self) -> bool {
         let luma = 0.2126 * self.bg_base.r() as f32
             + 0.7152 * self.bg_base.g() as f32
@@ -99,6 +127,7 @@ impl ColorPalette {
     }
 }
 
+/// Active visual theme combining a [`Skin`] and a [`ColorPalette`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AudioTheme {
     pub skin: Skin,

@@ -1,8 +1,13 @@
+//! Interactive audio editors: [`waveform_editor`], [`envelope_editor`] (ADSR),
+//! [`eq_curve_editor`], [`step_sequencer`], and [`mini_keyboard`].
+
 use crate::theme::AudioTheme;
 use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
 
 // ---------------- 1. WAVEFORM VIEWER / EDITOR ----------------
 
+/// Interactive state for [`waveform_editor`], storing normalized loop points,
+/// playhead position (`0.0..=1.0`), horizontal `zoom` (`1.0..=16.0`), and `pan`.
 pub struct WaveformState {
     pub loop_start: f32,
     pub loop_end: f32,
@@ -23,6 +28,8 @@ impl Default for WaveformState {
     }
 }
 
+/// Interactive waveform viewer/editor with loop handles, playhead, scroll-wheel zoom (`1x–16x`),
+/// `Shift`/middle-drag panning, and double-click zoom reset.
 pub fn waveform_editor(
     ui: &mut Ui,
     samples: &[f32],
@@ -198,6 +205,7 @@ impl Default for AdsrState {
     }
 }
 
+/// Draggable 4-stage ADSR envelope editor with gradient fill and glowing control nodes.
 pub fn envelope_editor(ui: &mut Ui, adsr: &mut AdsrState, size: Vec2, theme: &AudioTheme) -> Response {
     let (rect, mut response) = ui.allocate_exact_size(size, Sense::click_and_drag());
     let pad = 10.0;
@@ -368,6 +376,8 @@ impl EqBand {
     }
 }
 
+/// Multi-band parametric EQ editor supporting drag freq/gain, scroll Q, double-click
+/// add/remove band, right-click filter-type menu, and live HUD readout.
 pub fn eq_curve_editor(ui: &mut Ui, bands: &mut Vec<EqBand>, size: Vec2, theme: &AudioTheme) -> Response {
     let (rect, mut response) = ui.allocate_exact_size(size, Sense::click_and_drag());
     let active_id = response.id.with("eq_band");
@@ -579,6 +589,7 @@ pub fn eq_curve_editor(ui: &mut Ui, bands: &mut Vec<EqBand>, size: Vec2, theme: 
 
 // ---------------- 4. STEP SEQUENCER ----------------
 
+/// Click/drag 16-step velocity grid (`0.0..=1.0` per step) with highlighted active playhead.
 pub fn step_sequencer(
     ui: &mut Ui,
     steps: &mut [f32],
@@ -628,6 +639,7 @@ pub fn step_sequencer(
 
 // ---------------- 5. MINI PIANO KEYBOARD ----------------
 
+/// Compact 1-octave interactive MIDI keyboard returning `(semitone 0..12, velocity 0.1..=1.0)`.
 pub fn mini_keyboard(
     ui: &mut Ui,
     active_note: &mut Option<(u8, f32)>,

@@ -1,8 +1,15 @@
+//! Real-time audio meters and telemetry displays: [`level_meter`],
+//! [`gain_reduction_meter`], [`correlation_meter`], [`oscilloscope`],
+//! [`spectrum_analyzer`], [`oled_screen`], [`vu_meter`], and [`lufs_meter`].
+
 use crate::theme::AudioTheme;
 use egui::{Align2, FontId, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2};
 
 // ---------------- 1. LEVEL METER (STEREO PEAK / RMS + PEAK HOLD) ----------------
 
+/// Multi-channel segmented peak/RMS level meter with peak-hold indicators.
+///
+/// `levels` and `peak_hold` expect normalized `0.0..=1.0` values per channel.
 pub fn level_meter(
     ui: &mut Ui,
     levels: &[f32],
@@ -56,6 +63,7 @@ pub fn level_meter(
 
 // ---------------- 2. GAIN REDUCTION METER ----------------
 
+/// Top-down compressor gain-reduction bar meter (`reduction_norm` in `0.0..=1.0`).
 pub fn gain_reduction_meter(ui: &mut Ui, reduction_norm: f32, size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if ui.is_rect_visible(rect) {
@@ -72,6 +80,7 @@ pub fn gain_reduction_meter(ui: &mut Ui, reduction_norm: f32, size: Vec2, theme:
 
 // ---------------- 3. CORRELATION / PHASE METER ----------------
 
+/// Stereo phase-correlation bar (`-1.0` out of phase to `+1.0` mono-compatible).
 pub fn correlation_meter(ui: &mut Ui, correlation: f32, size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if ui.is_rect_visible(rect) {
@@ -92,6 +101,7 @@ pub fn correlation_meter(ui: &mut Ui, correlation: f32, size: Vec2, theme: &Audi
 
 // ---------------- 4. OSCILLOSCOPE ----------------
 
+/// Zero-crossing triggered real-time waveform oscilloscope (`samples` in `-1.0..=1.0`).
 pub fn oscilloscope(ui: &mut Ui, samples: &[f32], size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if !ui.is_rect_visible(rect) {
@@ -132,6 +142,7 @@ pub fn oscilloscope(ui: &mut Ui, samples: &[f32], size: Vec2, theme: &AudioTheme
 
 // ---------------- 5. SPECTRUM ANALYZER (FFT) ----------------
 
+/// Logarithmic-frequency FFT spectrum display (`bins_norm` in `0.0..=1.0`).
 pub fn spectrum_analyzer(ui: &mut Ui, bins_norm: &[f32], size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if !ui.is_rect_visible(rect) {
@@ -185,6 +196,7 @@ pub fn spectrum_analyzer(ui: &mut Ui, bins_norm: &[f32], size: Vec2, theme: &Aud
 
 // ---------------- 6. OLED / LCD INFO SCREEN ----------------
 
+/// Compact recessed OLED/LCD parameter readout with title, primary value, and subtitle.
 pub fn oled_screen(ui: &mut Ui, title: &str, value_text: &str, subtitle: &str, size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if ui.is_rect_visible(rect) {
@@ -217,6 +229,7 @@ pub fn oled_screen(ui: &mut Ui, title: &str, value_text: &str, subtitle: &str, s
 
 // ---------------- 7. ANALOG VU NEEDLE METER ----------------
 
+/// Analog ballistic needle VU meter (`-20` to `+3 dB`, red zone above `0 dB`; `level_norm` in `0.0..=1.0`).
 pub fn vu_meter(ui: &mut Ui, level_norm: f32, label: &str, size: Vec2, theme: &AudioTheme) {
     let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
     if !ui.is_rect_visible(rect) {
@@ -306,6 +319,8 @@ pub fn vu_meter(ui: &mut Ui, level_norm: f32, label: &str, size: Vec2, theme: &A
 
 // ---------------- 8. LUFS / LOUDNESS BAR METER ----------------
 
+/// Integrated loudness meter (`-48..=0 LUFS`) with momentary fill, `-14 LUFS` target,
+/// short-term marker, and `M` / `S` / `TP` (true peak dB) numeric readouts.
 pub fn lufs_meter(
     ui: &mut Ui,
     momentary_lufs: f32,

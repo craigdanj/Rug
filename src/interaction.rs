@@ -1,9 +1,15 @@
+//! Shared pointer/keyboard gesture handling for continuous audio controls.
+
 use crate::scale::ParamScale;
 use egui::{Response, Ui};
 
+/// Drag sensitivity and axis settings for [`handle_continuous_interaction`].
 pub struct DragConfig {
+    /// Normalized delta applied per pixel of pointer travel.
     pub sensitivity: f32,
+    /// Multiplier applied while holding `Shift` for precision fine-tuning.
     pub fine_multiplier: f32,
+    /// When `true`, uses horizontal pointer delta (`+x`); otherwise vertical (`-y`).
     pub horizontal: bool,
 }
 

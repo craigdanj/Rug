@@ -1,3 +1,6 @@
+//! Composite pro-audio modules: [`channel_strip`], [`saturation_display`],
+//! [`mod_matrix`], and [`piano_roll`].
+
 use crate::{
     buttons::{push_button, toggle_button},
     chrome::styled_text_input,
@@ -10,6 +13,7 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, Response, Rounding, Sense, Shape
 
 // ---------------- 1. MIXER CHANNEL STRIP ----------------
 
+/// Persistent state for a single DAW mixer [`channel_strip`].
 #[derive(Clone, Debug)]
 pub struct ChannelStripState {
     pub name: String,
@@ -37,6 +41,8 @@ impl ChannelStripState {
     }
 }
 
+/// Reusable DAW mixer channel strip with editable track name, pan knob, `M`/`S`/`R` toggles,
+/// vertical dB fader, stereo peak meter, and dB readout.
 pub fn channel_strip(
     ui: &mut Ui,
     state: &mut ChannelStripState,
@@ -184,6 +190,8 @@ impl Default for SaturationState {
     }
 }
 
+/// Interactive waveshaper/transfer-function display (`TUBE`, `TAPE`, `SOFT`, `FOLD`);
+/// drag vertically for drive, horizontally for bias, double-click to reset.
 pub fn saturation_display(
     ui: &mut Ui,
     state: &mut SaturationState,
@@ -318,6 +326,8 @@ pub struct ModRoute {
     pub depth: f32, // -1.0..=1.0
 }
 
+/// Interactive modulation router with live source pills, `+` route creation,
+/// clickable source/destination selectors, and draggable bipolar depth bars.
 pub fn mod_matrix(
     ui: &mut Ui,
     sources: &[(&str, f32)],
@@ -482,6 +492,8 @@ enum PianoDragMode {
     Velocity { idx: usize },
 }
 
+/// Mini DAW piano roll with click-to-add, drag-to-move, right-edge resize, double-click delete,
+/// draggable loop brace handles, and a synced bottom `VEL` velocity lane.
 pub fn piano_roll(
     ui: &mut Ui,
     state: &mut PianoRollState,
