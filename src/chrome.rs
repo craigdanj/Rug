@@ -142,9 +142,8 @@ pub fn rack_module(
                     .color(theme.palette.text_muted),
             );
             if let Some(b) = bypass {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    toggle_button(ui, b, "ON", Vec2::new(42.0, 18.0), None, theme);
-                });
+                ui.add_space(8.0);
+                toggle_button(ui, b, "ON", Vec2::new(42.0, 18.0), None, theme);
             }
         });
         ui.add_space(6.0);
