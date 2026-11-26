@@ -472,6 +472,16 @@ impl Default for PianoRollState {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum PianoDragMode {
+    None,
+    MoveNote { idx: usize, grab_offset_beats: f32 },
+    ResizeNote { idx: usize },
+    LoopStart,
+    LoopEnd,
+    Velocity { idx: usize },
+}
+
 pub fn piano_roll(
     ui: &mut Ui,
     state: &mut PianoRollState,
@@ -481,40 +491,160 @@ pub fn piano_roll(
 ) -> Response {
     let (rect, mut response) = ui.allocate_exact_size(size, Sense::click_and_drag());
     let key_w = 24.0;
-    let loop_h = 12.0;
+    let loop_h = 14.0;
+    let vel_h = (rect.height() * 0.24).clamp(22.0, 34.0);
+    let loop_bar = Rect::from_min_max(
+        Pos2::new(rect.min.x + key_w, rect.min.y),
+        Pos2::new(rect.max.x, rect.min.y + loop_h),
+    );
     let grid = Rect::from_min_max(
         Pos2::new(rect.min.x + key_w, rect.min.y + loop_h),
+        Pos2::new(rect.max.x, rect.max.y - vel_h),
+    );
+    let vel_lane = Rect::from_min_max(
+        Pos2::new(rect.min.x + key_w, grid.max.y),
         rect.max,
     );
+
     let rows = 12usize;
-    let row_h = grid.height() / rows as f32;
+    let row_h = (grid.height() / rows as f32).max(1.0);
     let total_beats = state.total_beats.max(1.0);
     let beat_w = grid.width() / total_beats;
     let snap = 0.25f32;
+    let drag_id = response.id.with("pr_drag");
 
-    // Click in grid to toggle/add note on 1/16th beat grid
-    if response.clicked() {
+    let hit_note = |notes: &[PianoNote], pos: Pos2| -> Option<(usize, bool)> {
+        let beat = (pos.x - grid.min.x) / beat_w;
+        let row_from_top = ((pos.y - grid.min.y) / row_h).floor() as isize;
+        if row_from_top < 0 || row_from_top >= rows as isize {
+            return None;
+        }
+        let pitch = (rows - 1 - row_from_top as usize) as u8;
+        for (i, n) in notes.iter().enumerate() {
+            if n.pitch == pitch && beat >= n.start && beat <= n.start + n.length {
+                let note_right_x = grid.min.x + ((n.start + n.length) / total_beats) * grid.width();
+                let on_right_edge = (note_right_x - pos.x).abs() <= 6.0;
+                return Some((i, on_right_edge));
+            }
+        }
+        None
+    };
+
+    if response.double_clicked() {
         if let Some(pos) = response.interact_pointer_pos() {
             if grid.contains(pos) {
+                if let Some((idx, _)) = hit_note(&state.notes, pos) {
+                    state.notes.remove(idx);
+                    response.mark_changed();
+                }
+            }
+        }
+    }
+
+    if response.drag_started() {
+        let mut mode = PianoDragMode::None;
+        if let Some(pos) = response.interact_pointer_pos() {
+            if loop_bar.contains(pos) {
+                let lx0 = grid.min.x + (state.loop_start / total_beats) * grid.width();
+                let lx1 = grid.min.x + (state.loop_end / total_beats) * grid.width();
+                mode = if (pos.x - lx0).abs() <= (pos.x - lx1).abs() {
+                    PianoDragMode::LoopStart
+                } else {
+                    PianoDragMode::LoopEnd
+                };
+            } else if vel_lane.contains(pos) {
+                let beat = (pos.x - grid.min.x) / beat_w;
+                if let Some((idx, _)) = state
+                    .notes
+                    .iter()
+                    .enumerate()
+                    .min_by(|(_, a), (_, b)| (a.start - beat).abs().total_cmp(&(b.start - beat).abs()))
+                {
+                    mode = PianoDragMode::Velocity { idx };
+                }
+            } else if grid.contains(pos) {
+                if let Some((idx, on_edge)) = hit_note(&state.notes, pos) {
+                    if on_edge {
+                        mode = PianoDragMode::ResizeNote { idx };
+                    } else {
+                        let beat = (pos.x - grid.min.x) / beat_w;
+                        mode = PianoDragMode::MoveNote {
+                            idx,
+                            grab_offset_beats: beat - state.notes[idx].start,
+                        };
+                    }
+                }
+            }
+        }
+        ui.data_mut(|d| d.insert_temp(drag_id, mode));
+    }
+
+    if response.dragged() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            let mode = ui.data_mut(|d| d.get_temp::<PianoDragMode>(drag_id).unwrap_or(PianoDragMode::None));
+            let beat = ((pos.x - grid.min.x) / beat_w).clamp(0.0, total_beats);
+            match mode {
+                PianoDragMode::MoveNote { idx, grab_offset_beats } => {
+                    if let Some(n) = state.notes.get_mut(idx) {
+                        let new_start = (((beat - grab_offset_beats) / snap).round() * snap)
+                            .clamp(0.0, (total_beats - n.length).max(0.0));
+                        let row_from_top = ((pos.y - grid.min.y) / row_h).floor().clamp(0.0, (rows - 1) as f32) as usize;
+                        n.start = new_start;
+                        n.pitch = (rows - 1 - row_from_top) as u8;
+                        response.mark_changed();
+                    }
+                }
+                PianoDragMode::ResizeNote { idx } => {
+                    if let Some(n) = state.notes.get_mut(idx) {
+                        let raw_len = (beat - n.start).max(snap);
+                        let snapped_len = ((raw_len / snap).round() * snap)
+                            .clamp(snap, (total_beats - n.start).max(snap));
+                        n.length = snapped_len;
+                        response.mark_changed();
+                    }
+                }
+                PianoDragMode::LoopStart => {
+                    let s = ((beat / snap).round() * snap).clamp(0.0, state.loop_end - snap);
+                    state.loop_start = s;
+                    response.mark_changed();
+                }
+                PianoDragMode::LoopEnd => {
+                    let e = ((beat / snap).round() * snap).clamp(state.loop_start + snap, total_beats);
+                    state.loop_end = e;
+                    response.mark_changed();
+                }
+                PianoDragMode::Velocity { idx } => {
+                    if let Some(n) = state.notes.get_mut(idx) {
+                        n.velocity = (1.0 - (pos.y - vel_lane.min.y) / vel_lane.height()).clamp(0.1, 1.0);
+                        response.mark_changed();
+                    }
+                }
+                PianoDragMode::None => {}
+            }
+        }
+    } else if response.clicked() {
+        if let Some(pos) = response.interact_pointer_pos() {
+            if vel_lane.contains(pos) {
+                let beat = (pos.x - grid.min.x) / beat_w;
+                if let Some(n) = state
+                    .notes
+                    .iter_mut()
+                    .min_by(|a, b| (a.start - beat).abs().total_cmp(&(b.start - beat).abs()))
+                {
+                    n.velocity = (1.0 - (pos.y - vel_lane.min.y) / vel_lane.height()).clamp(0.1, 1.0);
+                    response.mark_changed();
+                }
+            } else if grid.contains(pos) && hit_note(&state.notes, pos).is_none() {
                 let beat = ((pos.x - grid.min.x) / beat_w).clamp(0.0, total_beats - snap);
                 let row_from_top = ((pos.y - grid.min.y) / row_h).floor().clamp(0.0, (rows - 1) as f32) as usize;
                 let pitch = (rows - 1 - row_from_top) as u8;
-
-                if let Some(existing) = state
-                    .notes
-                    .iter()
-                    .position(|n| n.pitch == pitch && beat >= n.start && beat <= n.start + n.length)
-                {
-                    state.notes.remove(existing);
-                } else {
-                    let snapped = (beat / snap).floor() * snap;
-                    state.notes.push(PianoNote {
-                        pitch,
-                        start: snapped,
-                        length: 0.5,
-                        velocity: 0.85,
-                    });
-                }
+                let snapped = (beat / snap).floor() * snap;
+                state.notes.push(PianoNote {
+                    pitch,
+                    start: snapped,
+                    length: 0.5,
+                    velocity: 0.85,
+                });
                 response.mark_changed();
             }
         }
@@ -524,7 +654,6 @@ pub fn piano_roll(
         let painter = ui.painter();
         theme.paint_recessed_rect(painter, rect, 4.0);
 
-        // Loop brace header bar
         let loop_rect = Rect::from_min_max(
             Pos2::new(grid.min.x + (state.loop_start / total_beats) * grid.width(), rect.min.y + 2.0),
             Pos2::new(grid.min.x + (state.loop_end / total_beats) * grid.width(), rect.min.y + loop_h - 1.0),
@@ -534,6 +663,13 @@ pub fn piano_roll(
             [Pos2::new(loop_rect.min.x, loop_rect.min.y), Pos2::new(loop_rect.max.x, loop_rect.min.y)],
             Stroke::new(2.0, theme.palette.accent),
         );
+        for hx in [loop_rect.min.x + 2.0, loop_rect.max.x - 2.0] {
+            painter.rect_filled(
+                Rect::from_center_size(Pos2::new(hx, loop_rect.center().y), Vec2::new(4.0, loop_rect.height() - 2.0)),
+                1.0,
+                theme.palette.accent,
+            );
+        }
 
         let is_black = |p: usize| matches!(p % 12, 1 | 3 | 6 | 8 | 10);
         let note_names = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -543,7 +679,6 @@ pub fn piano_roll(
             let y0 = grid.min.y + r as f32 * row_h;
             let y1 = y0 + row_h;
 
-            // Left piano key gutter
             let key_rect = Rect::from_min_max(Pos2::new(rect.min.x + 1.0, y0), Pos2::new(grid.min.x - 1.0, y1));
             let key_col = if is_black(pitch) {
                 AudioTheme::darken(theme.palette.bg_recessed, 0.3)
@@ -561,7 +696,6 @@ pub fn piano_roll(
                 );
             }
 
-            // Lane background shading
             if is_black(pitch) {
                 painter.rect_filled(
                     Rect::from_min_max(Pos2::new(grid.min.x, y0), Pos2::new(grid.max.x, y1)),
@@ -575,7 +709,6 @@ pub fn piano_roll(
             );
         }
 
-        // Vertical beat & 1/4-beat grid lines
         let subdivs = (total_beats * 4.0) as usize;
         for s in 0..=subdivs {
             let x = grid.min.x + (s as f32 / subdivs as f32) * grid.width();
@@ -585,25 +718,45 @@ pub fn piano_roll(
             } else {
                 AudioTheme::with_alpha(theme.palette.border, 40)
             };
-            painter.line_segment([Pos2::new(x, grid.min.y), Pos2::new(x, grid.max.y)], Stroke::new(1.0, col));
+            painter.line_segment([Pos2::new(x, grid.min.y), Pos2::new(x, rect.max.y)], Stroke::new(1.0, col));
         }
 
-        // Notes
+        painter.line_segment(
+            [Pos2::new(rect.min.x + 1.0, vel_lane.min.y), Pos2::new(rect.max.x - 1.0, vel_lane.min.y)],
+            Stroke::new(1.0, theme.palette.border),
+        );
+        painter.text(
+            Pos2::new(rect.min.x + key_w * 0.5, vel_lane.center().y),
+            Align2::CENTER_CENTER,
+            "VEL",
+            FontId::monospace(7.5),
+            theme.palette.text_muted,
+        );
+
         for n in &state.notes {
             let r = (rows - 1).saturating_sub(n.pitch as usize);
             let x0 = grid.min.x + (n.start / total_beats) * grid.width() + 0.5;
             let x1 = grid.min.x + ((n.start + n.length) / total_beats) * grid.width() - 0.5;
             let y0 = grid.min.y + r as f32 * row_h + 1.0;
             let y1 = y0 + row_h - 2.0;
-            let note_rect = Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1.max(x0 + 4.0), y1));
+            let note_rect = Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1.max(x0 + 5.0), y1));
             let col = AudioTheme::lerp_color(theme.palette.accent_secondary, theme.palette.accent, n.velocity);
             painter.rect_filled(note_rect, 2.0, col);
             painter.rect_stroke(note_rect, 2.0, Stroke::new(1.0, Color32::from_white_alpha(70)));
+
+            let vx = x0 + 3.0;
+            let vh = (vel_lane.height() - 5.0) * n.velocity.clamp(0.1, 1.0);
+            let vy = vel_lane.max.y - 2.0 - vh;
+            painter.line_segment(
+                [Pos2::new(vx, vel_lane.max.y - 2.0), Pos2::new(vx, vy)],
+                Stroke::new(2.0, col),
+            );
+            painter.circle_filled(Pos2::new(vx, vy), 2.5, theme.palette.text_primary);
         }
 
-        // Playhead
-        let ph = (playhead_beat % total_beats) / total_beats;
-        let px = grid.min.x + ph * grid.width();
+        let loop_span = (state.loop_end - state.loop_start).max(snap);
+        let ph_beat = state.loop_start + (playhead_beat % loop_span);
+        let px = grid.min.x + (ph_beat / total_beats) * grid.width();
         painter.line_segment(
             [Pos2::new(px, rect.min.y + 1.0), Pos2::new(px, rect.max.y - 1.0)],
             Stroke::new(1.5, theme.palette.text_primary),
@@ -612,5 +765,5 @@ pub fn piano_roll(
         theme.paint_screen_overlay(painter, rect);
     }
 
-    response
+    response.on_hover_text("Click: add | Drag: move | Right edge: resize | Double-click: delete | Bottom: velocity")
 }

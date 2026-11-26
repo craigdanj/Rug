@@ -63,9 +63,9 @@ impl Default for AudioShowcase {
             wf_state: WaveformState::default(),
             adsr: AdsrState::default(),
             eq_bands: vec![
-                EqBand { freq_norm: 0.2, gain_norm: 0.35, q: 1.4 },
-                EqBand { freq_norm: 0.52, gain_norm: -0.4, q: 2.2 },
-                EqBand { freq_norm: 0.8, gain_norm: 0.5, q: 1.1 },
+                EqBand { freq_norm: 0.18, gain_norm: 0.35, q: 1.2, filter_type: EqFilterType::LowShelf },
+                EqBand { freq_norm: 0.52, gain_norm: -0.4, q: 2.2, filter_type: EqFilterType::Peak },
+                EqBand { freq_norm: 0.82, gain_norm: 0.45, q: 1.1, filter_type: EqFilterType::HighShelf },
             ],
             steps: vec![0.9, 0.0, 0.5, 0.0, 0.85, 0.0, 0.4, 0.6, 0.9, 0.0, 0.3, 0.0, 0.8, 0.4, 0.0, 0.7],
             active_note: None,
@@ -295,7 +295,7 @@ impl eframe::App for AudioShowcase {
                         });
                     });
                     rack_module(ui, "Piano Roll", None, &self.theme, |ui| {
-                        piano_roll(ui, &mut self.piano_roll, self.time * 1.5, Vec2::new(280.0, 108.0), &self.theme);
+                        piano_roll(ui, &mut self.piano_roll, self.time * 1.5, Vec2::new(300.0, 136.0), &self.theme);
                     });
                 });
             });
