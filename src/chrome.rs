@@ -17,7 +17,7 @@ pub fn scrub_value_box(
     width: f32,
     theme: &AudioTheme,
 ) -> Response {
-    let id = ui.make_persistent_id(("scrub_box", unit, width.to_bits()));
+    let id = ui.next_auto_id();
     let editing = ui.data_mut(|d| d.get_temp::<bool>(id).unwrap_or(false));
 
     if editing {
@@ -25,10 +25,18 @@ pub fn scrub_value_box(
             d.get_temp::<String>(id.with("buf"))
                 .unwrap_or_else(|| scale.format(*value, unit))
         });
-        let resp = ui.add_sized(Vec2::new(width, 22.0), TextEdit::singleline(&mut buf));
-        if resp.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        let needs_focus = ui.data_mut(|d| d.get_temp::<bool>(id.with("focus")).unwrap_or(false));
+        let mut resp = ui.add_sized(Vec2::new(width, 22.0), TextEdit::singleline(&mut buf));
+        if needs_focus {
+            resp.request_focus();
+            ui.data_mut(|d| d.insert_temp(id.with("focus"), false));
+            ui.data_mut(|d| d.insert_temp(id.with("buf"), buf));
+        } else if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            ui.data_mut(|d| d.insert_temp(id, false));
+        } else if resp.lost_focus() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             if let Some(parsed) = scale.parse(&buf) {
                 *value = parsed;
+                resp.mark_changed();
             }
             ui.data_mut(|d| d.insert_temp(id, false));
         } else {
@@ -41,6 +49,7 @@ pub fn scrub_value_box(
     if response.double_clicked() {
         ui.data_mut(|d| {
             d.insert_temp(id, true);
+            d.insert_temp(id.with("focus"), true);
             d.insert_temp(id.with("buf"), format!("{:.2}", *value));
         });
         return response;
@@ -101,15 +110,51 @@ pub fn preset_bar(
         }
         let name = presets.get(*current).copied().unwrap_or("Init");
         let display = if dirty { format!("{} *", name) } else { name.to_string() };
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(160.0, 24.0), Sense::hover());
+        let (rect, box_resp) = ui.allocate_exact_size(Vec2::new(160.0, 24.0), Sense::click());
+        let popup_id = box_resp.id.with("preset_popup");
+        if box_resp.clicked() && !presets.is_empty() {
+            ui.memory_mut(|m| m.toggle_popup(popup_id));
+        }
+
         theme.paint_recessed_rect(ui.painter(), rect, 3.0);
+        if box_resp.hovered() {
+            ui.painter().rect_stroke(
+                rect,
+                theme.rounding(3.0),
+                Stroke::new(1.0, AudioTheme::with_alpha(theme.palette.accent, 130)),
+            );
+        }
         ui.painter().text(
-            rect.center(),
+            egui::Pos2::new(rect.center().x - 6.0, rect.center().y),
             Align2::CENTER_CENTER,
             display,
             FontId::monospace(11.5),
             theme.palette.text_primary,
         );
+        ui.painter().text(
+            egui::Pos2::new(rect.max.x - 10.0, rect.center().y),
+            Align2::CENTER_CENTER,
+            "v",
+            FontId::monospace(9.5),
+            theme.palette.text_muted,
+        );
+
+        egui::popup::popup_below_widget(
+            ui,
+            popup_id,
+            &box_resp,
+            egui::PopupCloseBehavior::CloseOnClick,
+            |ui| {
+                ui.set_min_width(160.0);
+                for (i, &preset) in presets.iter().enumerate() {
+                    if ui.selectable_label(i == *current, preset).clicked() && i != *current {
+                        *current = i;
+                        changed = true;
+                    }
+                }
+            },
+        );
+
         if push_button(ui, ">", Vec2::new(24.0, 24.0), theme).clicked() && !presets.is_empty() {
             *current = (*current + 1) % presets.len();
             changed = true;
