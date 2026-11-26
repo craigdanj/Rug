@@ -2,10 +2,17 @@
 
 A custom `egui` widget library for audio plugins and desktop audio applications, featuring **3 switchable skins** (`Skeuomorphic`, `Hybrid`, `Flat`) and a **fully configurable `ColorPalette`**.
 
-## Running the Showcase
+## Running the Demos & Tests
 
 ```bash
+# Full widget & skin/palette showcase
 cargo run --example showcase
+
+# Focused synth voice + 4-channel mixer console demo
+cargo run --example synth_mixer
+
+# Run unit tests
+cargo test
 ```
 
 ## Included Widgets

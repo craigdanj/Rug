@@ -678,3 +678,26 @@ pub fn mini_keyboard(
     }
     response
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eq_filter_responses_behave_as_expected() {
+        let peak = EqBand { freq_norm: 0.5, gain_norm: 0.8, q: 1.5, filter_type: EqFilterType::Peak };
+        assert!(peak.response_at(0.5) > peak.response_at(0.1));
+
+        let low_shelf = EqBand { freq_norm: 0.3, gain_norm: 0.6, q: 1.0, filter_type: EqFilterType::LowShelf };
+        assert!(low_shelf.response_at(0.05) > low_shelf.response_at(0.9));
+
+        let high_shelf = EqBand { freq_norm: 0.7, gain_norm: 0.6, q: 1.0, filter_type: EqFilterType::HighShelf };
+        assert!(high_shelf.response_at(0.95) > high_shelf.response_at(0.1));
+
+        let lp = EqBand { freq_norm: 0.5, gain_norm: 0.0, q: 1.0, filter_type: EqFilterType::LowPass };
+        assert!(lp.response_at(0.1) > lp.response_at(0.95));
+
+        let hp = EqBand { freq_norm: 0.5, gain_norm: 0.0, q: 1.0, filter_type: EqFilterType::HighPass };
+        assert!(hp.response_at(0.9) > hp.response_at(0.05));
+    }
+}

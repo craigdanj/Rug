@@ -518,3 +518,25 @@ impl AudioTheme {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn palette_light_detection() {
+        assert!(!ColorPalette::studio_cyan().is_light());
+        assert!(!ColorPalette::bassmaker_slate().is_light());
+        assert!(ColorPalette::light_nordic().is_light());
+    }
+
+    #[test]
+    fn color_helpers_stay_in_bounds() {
+        let black = Color32::from_rgb(0, 0, 0);
+        let white = Color32::from_rgb(255, 255, 255);
+        assert_eq!(AudioTheme::lerp_color(black, white, 0.0), black);
+        assert_eq!(AudioTheme::lerp_color(black, white, 1.0), white);
+        assert_eq!(AudioTheme::lighten(white, 0.5), white);
+        assert_eq!(AudioTheme::darken(black, 0.5), black);
+    }
+}

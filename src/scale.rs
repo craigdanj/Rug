@@ -78,3 +78,38 @@ impl ParamScale {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip_linear_log_db_bipolar() {
+        let scales = [
+            ParamScale::Linear { min: 0.0, max: 100.0 },
+            ParamScale::Log { min: 20.0, max: 20000.0 },
+            ParamScale::Decibel { min_db: -60.0, max_db: 6.0 },
+            ParamScale::Bipolar { max_abs: 1.0 },
+        ];
+        for scale in scales {
+            for t in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                let v = scale.denormalize(t);
+                let back = scale.normalize(v);
+                assert!((back - t).abs() < 1e-4, "scale {:?} failed at t={}", scale, t);
+            }
+        }
+    }
+
+    #[test]
+    fn parse_units_and_edge_cases() {
+        let freq = ParamScale::Log { min: 20.0, max: 20000.0 };
+        assert!((freq.parse("1.2k").unwrap() - 1200.0).abs() < 1.0);
+        assert!((freq.parse("440 Hz").unwrap() - 440.0).abs() < 1.0);
+        assert_eq!(freq.parse("not-a-number"), None);
+
+        let db = ParamScale::Decibel { min_db: -60.0, max_db: 6.0 };
+        assert!((db.parse("-6dB").unwrap() - (-6.0)).abs() < 1e-3);
+        assert_eq!(db.parse("-inf dB"), Some(-60.0));
+        assert_eq!(db.format(-60.0, "dB"), "-inf dB");
+    }
+}

@@ -767,3 +767,34 @@ pub fn piano_roll(
 
     response.on_hover_text("Click: add | Drag: move | Right edge: resize | Double-click: delete | Bottom: velocity")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn saturation_modes_stay_bounded() {
+        for mode in SaturationMode::ALL {
+            for drive in [0.0, 0.5, 1.0] {
+                for bias in [-1.0, 0.0, 1.0] {
+                    for x in [-1.0, -0.5, 0.0, 0.5, 1.0] {
+                        let y = mode.shape(x, drive, bias);
+                        assert!(
+                            (-1.0..=1.0).contains(&y) && y.is_finite(),
+                            "{:?} out of bounds: {}",
+                            mode,
+                            y
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn channel_strip_defaults() {
+        let strip = ChannelStripState::new("SUB", -3.0, 0.0);
+        assert_eq!(strip.name, "SUB");
+        assert!(!strip.mute && !strip.solo && !strip.rec_arm);
+    }
+}
