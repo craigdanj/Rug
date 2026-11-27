@@ -8,15 +8,16 @@
 //! - **Continuous controls** ([`RotaryKnob`], [`Fader`], [`XyPad`], [`RangeSlider`]) with
 //!   audio-native scaling ([`ParamScale`]), Shift fine-tune, double-click reset, tooltips,
 //!   and right-click context menus
-//! - **Metering & displays** ([`level_meter`], [`vu_meter`], [`lufs_meter`], [`oscilloscope`],
-//!   [`spectrum_analyzer`], [`oled_screen`])
+//! - **Metering & DSP analysis** ([`level_meter`], [`vu_meter`], [`lufs_meter`],
+//!   [`oscilloscope`], [`spectrum_analyzer`], [`oled_screen`], [`compressor_curve`],
+//!   [`goniometer`], [`wavetable_view`], [`chromatic_tuner`], [`MeterBallistics`])
 //! - **Interactive editors & pro modules** ([`waveform_editor`], [`envelope_editor`],
 //!   [`eq_curve_editor`], [`step_sequencer`], [`piano_roll`], [`channel_strip`],
 //!   [`saturation_display`], [`mod_matrix`])
 //!
 //! # Quick Start
 //! ```no_run
-//! use egui_audio_ui::{AudioTheme, ColorPalette, Skin};
+//! use egui_audio_ui::prelude::*;
 //!
 //! let theme = AudioTheme::new(Skin::Skeuomorphic, ColorPalette::bassmaker_slate());
 //! // Inside eframe::App::update:
@@ -34,13 +35,18 @@ pub mod pro;
 pub mod scale;
 pub mod theme;
 
-pub use buttons::*;
-pub use chrome::*;
-pub use controls::*;
-pub use dsp_widgets::*;
-pub use editors::*;
-pub use interaction::*;
-pub use meters::*;
-pub use pro::*;
-pub use scale::*;
-pub use theme::*;
+/// Convenient glob import for all commonly used widgets, state types, scales, and themes.
+pub mod prelude {
+    pub use crate::buttons::*;
+    pub use crate::chrome::*;
+    pub use crate::controls::*;
+    pub use crate::dsp_widgets::*;
+    pub use crate::editors::*;
+    pub use crate::interaction::*;
+    pub use crate::meters::*;
+    pub use crate::pro::*;
+    pub use crate::scale::*;
+    pub use crate::theme::*;
+}
+
+pub use prelude::*;
