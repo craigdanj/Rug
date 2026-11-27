@@ -26,6 +26,7 @@
 pub mod buttons;
 pub mod chrome;
 pub mod controls;
+pub mod dsp_widgets;
 pub mod editors;
 pub mod interaction;
 pub mod meters;
@@ -36,6 +37,7 @@ pub mod theme;
 pub use buttons::*;
 pub use chrome::*;
 pub use controls::*;
+pub use dsp_widgets::*;
 pub use editors::*;
 pub use interaction::*;
 pub use meters::*;

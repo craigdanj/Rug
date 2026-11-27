@@ -38,6 +38,11 @@ struct AudioShowcase {
     mod_routes: Vec<ModRoute>,
     selected_mod_src: usize,
     piano_roll: PianoRollState,
+    comp: CompressorState,
+    wt_pos: f32,
+    wt_frames: Vec<Vec<f32>>,
+    meter_l: MeterBallistics,
+    meter_r: MeterBallistics,
     time: f32,
 }
 
@@ -80,6 +85,24 @@ impl Default for AudioShowcase {
             ],
             selected_mod_src: 0,
             piano_roll: PianoRollState::default(),
+            comp: CompressorState::default(),
+            wt_pos: 0.35,
+            wt_frames: (0..8)
+                .map(|f| {
+                    let morph = f as f32 / 7.0;
+                    (0..64)
+                        .map(|i| {
+                            let ph = (i as f32 / 64.0) * std::f32::consts::TAU;
+                            let sine = ph.sin();
+                            let saw = 1.0 - 2.0 * (i as f32 / 64.0);
+                            let fold = (ph * (1.0 + morph * 3.0)).sin();
+                            (sine * (1.0 - morph) + (saw * 0.5 + fold * 0.5) * morph).clamp(-1.0, 1.0)
+                        })
+                        .collect()
+                })
+                .collect(),
+            meter_l: MeterBallistics::default(),
+            meter_r: MeterBallistics::default(),
             time: 0.0,
         }
     }
@@ -87,7 +110,8 @@ impl Default for AudioShowcase {
 
 impl eframe::App for AudioShowcase {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.time += ctx.input(|i| i.unstable_dt).min(0.05);
+        let dt = ctx.input(|i| i.unstable_dt).min(0.05);
+        self.time += dt;
         ctx.request_repaint();
 
         self.theme.apply_to_ctx(ctx);
@@ -157,8 +181,20 @@ impl eframe::App for AudioShowcase {
         let fft_bins: Vec<f32> = (0..48)
             .map(|i| ((1.0 - i as f32 / 48.0) * (0.5 + 0.4 * (self.time * 4.0 + i as f32 * 0.3).sin())).clamp(0.0, 1.0))
             .collect();
-        let lvl_l = 0.55 + 0.35 * (self.time * 5.0).sin().abs();
-        let lvl_r = 0.50 + 0.38 * (self.time * 5.3 + 0.6).sin().abs();
+        let raw_l = 0.55 + 0.35 * (self.time * 5.0).sin().abs();
+        let raw_r = 0.50 + 0.38 * (self.time * 5.3 + 0.6).sin().abs();
+        self.meter_l.update(raw_l, dt);
+        self.meter_r.update(raw_r, dt);
+        let lvl_l = self.meter_l.level;
+        let lvl_r = self.meter_r.level;
+        let stereo_samples: Vec<(f32, f32)> = (0..128)
+            .map(|i| {
+                let t = i as f32 * 0.11 + self.time * 6.0;
+                ((t.sin() * 0.72), ((t * 1.02 + 0.65).sin() * 0.68))
+            })
+            .collect();
+        let comp_in_db = -34.0 + lvl_l * 32.0;
+        let tuner_hz = 440.0 + (self.time * 0.9).sin() * 6.0;
         let lfo1 = (self.time * 2.0).sin();
         let env2 = ((self.time * 1.4).sin() * 0.5 + 0.5).powf(2.0);
         let cutoff_mod: f32 = self
@@ -296,6 +332,22 @@ impl eframe::App for AudioShowcase {
                     });
                     rack_module(ui, "Piano Roll", None, &self.theme, |ui| {
                         piano_roll(ui, &mut self.piano_roll, self.time * 1.5, Vec2::new(300.0, 136.0), &self.theme);
+                    });
+                });
+
+                ui.add_space(8.0);
+                ui.horizontal_top(|ui| {
+                    rack_module(ui, "Dynamics & Stereo", None, &self.theme, |ui| {
+                        ui.horizontal(|ui| {
+                            compressor_curve(ui, &mut self.comp, comp_in_db, Vec2::new(175.0, 118.0), &self.theme);
+                            goniometer(ui, &stereo_samples, Vec2::new(118.0, 118.0), &self.theme);
+                        });
+                    });
+                    rack_module(ui, "Wavetable & Tuner", None, &self.theme, |ui| {
+                        ui.horizontal(|ui| {
+                            wavetable_view(ui, &self.wt_frames, &mut self.wt_pos, Vec2::new(205.0, 118.0), &self.theme);
+                            chromatic_tuner(ui, tuner_hz, Vec2::new(148.0, 118.0), &self.theme);
+                        });
                     });
                 });
             });
