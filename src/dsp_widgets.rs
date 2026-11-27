@@ -59,10 +59,12 @@ impl MeterBallistics {
         if target >= self.peak_hold {
             self.peak_hold = target;
             self.hold_timer = self.hold_sec;
-        } else if self.hold_timer > 0.0 {
-            self.hold_timer = (self.hold_timer - dt).max(0.0);
+        } else if self.hold_timer >= dt {
+            self.hold_timer -= dt;
         } else {
-            self.peak_hold = (self.peak_hold - self.peak_decay_per_sec * dt).max(self.level);
+            let decay_dt = dt - self.hold_timer;
+            self.hold_timer = 0.0;
+            self.peak_hold = (self.peak_hold - self.peak_decay_per_sec * decay_dt).max(self.level);
         }
     }
 
